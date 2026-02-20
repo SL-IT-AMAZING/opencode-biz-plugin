@@ -1,0 +1,48 @@
+{
+  "name": "opencode-plugin-brain",
+  "version": "0.1.0",
+  "description": "Brain-inspired memory management plugin for OpenCode — Akashic Record, Thalamus, and Cortex architecture with Obsidian vault integration",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target bun --format esm && tsc --emitDeclarationOnly",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "prepublishOnly": "bun run clean && bun run build"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "plugin",
+    "brain",
+    "memory",
+    "obsidian"
+  ],
+  "author": "YeonGyu-Kim",
+  "license": "SUL-1.0",
+  "peerDependencies": {
+    "@opencode-ai/plugin": ">=1.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "ulid": "^3.0.2",
+    "zod": "^4.1.8"
+  },
+  "devDependencies": {
+    "@opencode-ai/plugin": "^1.1.19",
+    "bun-types": "latest",
+    "typescript": "^5.7.3"
+  }
+}

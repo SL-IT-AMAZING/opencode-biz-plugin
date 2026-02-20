@@ -1,0 +1,6 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.sisyphus/
+CONSOLIDATION_INDEX.md
+CONSOLIDATION_MAP.md
