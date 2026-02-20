@@ -93,3 +93,76 @@ export function createInitialStateJson(): string {
     schema_version: 1,
   }, null, 2)
 }
+
+export function createMeetingTemplate(title: string, participants: string[], date: string): string {
+  return `---
+type: meeting
+title: "${title}"
+date: ${date}
+participants: [${participants.map(p => `"${p}"`).join(", ")}]
+---
+
+# ${title}
+
+## Participants
+${participants.map(p => `- ${p}`).join("\n")}
+
+## Notes
+
+
+## Decisions
+
+
+## Action Items
+
+`
+}
+
+export function createDecisionTemplate(title: string, decision: string, reasoning: string, confidence: string): string {
+  return `---
+type: decision
+title: "${title}"
+confidence: ${confidence}
+date: ${new Date().toISOString().split("T")[0]}
+status: decided
+---
+
+# ${title}
+
+## Decision
+${decision}
+
+## Reasoning
+${reasoning}
+
+## Alternatives Considered
+
+
+## Outcomes
+
+`
+}
+
+export function createPersonTemplate(name: string, relationship: string): string {
+  return `---
+type: person
+name: "${name}"
+relationship: ${relationship}
+first_seen: ${new Date().toISOString()}
+---
+
+# ${name}
+
+## Role
+
+
+## Company
+
+
+## Key Topics
+
+
+## Notes
+
+`
+}

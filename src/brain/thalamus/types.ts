@@ -1,4 +1,4 @@
-import type { AkashicEvent } from "../types"
+import type { AkashicEvent, CeoEventType } from "../types"
 
 export type ThalamusEventHandler = (event: AkashicEvent) => void | Promise<void>
 
@@ -21,4 +21,13 @@ export interface PendingChange {
   type: "add" | "change" | "unlink"
   timestamp: number
   size?: number
+}
+
+export interface BusinessScoreFactors {
+  event_type: CeoEventType
+  has_decision: boolean
+  has_commitment: boolean
+  participant_count: number
+  topic_novelty: number
+  business_domain: "investment" | "hiring" | "product" | "operations" | "strategy" | "other"
 }

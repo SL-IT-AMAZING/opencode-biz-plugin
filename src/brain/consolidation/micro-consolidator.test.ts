@@ -90,6 +90,11 @@ function makePaths(rootDir: string): BrainPaths {
     dbFile: join(brainDir, "index", "brain.sqlite"),
     stateFile: join(brainDir, "index", "state.json"),
     lockFile: join(brainDir, "locks", "writer.lock"),
+    ceo: join(brainDir, "ceo"),
+    peopleStore: join(brainDir, "ceo", "people"),
+    decisionsStore: join(brainDir, "ceo", "decisions"),
+    commitmentsStore: join(brainDir, "ceo", "commitments"),
+    ceoMeetings: join(brainDir, "ceo", "meetings"),
   }
 }
 

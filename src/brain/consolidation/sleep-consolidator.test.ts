@@ -108,6 +108,11 @@ function makePaths(rootDir: string): BrainPaths {
     dbFile: `${rootDir}/_brain/index/brain.sqlite`,
     stateFile: `${rootDir}/_brain/index/state.json`,
     lockFile: `${rootDir}/_brain/locks/writer.lock`,
+    ceo: `${rootDir}/_brain/ceo`,
+    peopleStore: `${rootDir}/_brain/ceo/people`,
+    decisionsStore: `${rootDir}/_brain/ceo/decisions`,
+    commitmentsStore: `${rootDir}/_brain/ceo/commitments`,
+    ceoMeetings: `${rootDir}/_brain/ceo/meetings`,
   }
 }
 

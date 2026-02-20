@@ -14,9 +14,12 @@ import { createMicroConsolidator } from "./brain/consolidation/micro-consolidato
 import { createDailyConsolidator } from "./brain/consolidation/daily-consolidator"
 import { createArchivalRollup } from "./brain/consolidation/archival-rollup"
 import { createSleepConsolidator } from "./brain/consolidation/sleep-consolidator"
-import { createBrainTools } from "./tools"
+import { createBrainTools, createMeetingTools, createDecisionTools, createPeopleTools, createCommitmentTools } from "./tools"
 import { createBrainHook } from "./hooks"
 import { createHeartbeat } from "./brain/heartbeat"
+import { createPersonStore } from "./brain/stores/person-store"
+import { createDecisionStore } from "./brain/stores/decision-store"
+import { createCommitmentStore } from "./brain/stores/commitment-store"
 import {
   BrainConfigSchema,
   BrainWatchConfigSchema,
@@ -142,7 +145,11 @@ const BrainPlugin: Plugin = async (ctx) => {
     paths: system.paths,
   })
 
-  const tools = createBrainTools({
+  const personStore = createPersonStore(system.paths.peopleStore)
+  const decisionStore = createDecisionStore(system.paths.decisionsStore)
+  const commitmentStore = createCommitmentStore(system.paths.commitmentsStore)
+
+  const toolDeps = {
     paths: system.paths,
     db,
     fts,
@@ -151,7 +158,19 @@ const BrainPlugin: Plugin = async (ctx) => {
     hybridSearcher,
     microConsolidator,
     sleepConsolidator,
-  })
+    personStore,
+    decisionStore,
+    commitmentStore,
+    akashicLogger,
+  }
+
+  const tools = {
+    ...createBrainTools(toolDeps),
+    ...createMeetingTools(toolDeps),
+    ...createDecisionTools(toolDeps),
+    ...createPeopleTools(toolDeps),
+    ...createCommitmentTools(toolDeps),
+  }
 
   const heartbeat = createHeartbeat({
     paths: system.paths,

@@ -17,6 +17,12 @@ export interface BrainPaths {
   dbFile: string
   stateFile: string
   lockFile: string
+  // CEO store paths
+  ceo: string
+  peopleStore: string
+  decisionsStore: string
+  commitmentsStore: string
+  ceoMeetings: string
 }
 
 export function createBrainPaths(vaultPath: string, brainDir = "_brain"): BrainPaths {
@@ -39,6 +45,11 @@ export function createBrainPaths(vaultPath: string, brainDir = "_brain"): BrainP
     dbFile: join(brain, "index", "brain.sqlite"),
     stateFile: join(brain, "index", "state.json"),
     lockFile: join(brain, "locks", "writer.lock"),
+    ceo: join(brain, "ceo"),
+    peopleStore: join(brain, "ceo", "people"),
+    decisionsStore: join(brain, "ceo", "decisions"),
+    commitmentsStore: join(brain, "ceo", "commitments"),
+    ceoMeetings: join(brain, "ceo", "meetings"),
   }
 }
 

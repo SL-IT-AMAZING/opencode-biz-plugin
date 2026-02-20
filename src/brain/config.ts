@@ -46,6 +46,14 @@ export const BrainHeartbeatConfigSchema = z.object({
   max_suggestions: z.number().min(1).max(3).default(1),
 })
 
+export const BrainCeoConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  auto_log_meetings: z.boolean().default(true),
+  auto_track_commitments: z.boolean().default(true),
+  commitment_reminder_days: z.number().min(1).max(30).default(3),
+  relationship_types: z.array(z.string()).default(["team", "investor", "advisor", "partner", "customer", "other"]),
+})
+
 export const BrainConfigSchema = z.object({
   enabled: z.boolean().default(false),
   vault_path: z.string().optional().describe("Absolute path to Obsidian vault root. Auto-detected if not set."),
@@ -57,6 +65,7 @@ export const BrainConfigSchema = z.object({
   injection: BrainInjectionConfigSchema.optional(),
   search: BrainSearchConfigSchema.optional(),
   heartbeat: BrainHeartbeatConfigSchema.optional(),
+  ceo: BrainCeoConfigSchema.optional(),
 })
 
 export type BrainConfig = z.infer<typeof BrainConfigSchema>
@@ -66,3 +75,4 @@ export type BrainConsolidationConfig = z.infer<typeof BrainConsolidationConfigSc
 export type BrainInjectionConfig = z.infer<typeof BrainInjectionConfigSchema>
 export type BrainSearchConfig = z.infer<typeof BrainSearchConfigSchema>
 export type BrainHeartbeatConfig = z.infer<typeof BrainHeartbeatConfigSchema>
+export type BrainCeoConfig = z.infer<typeof BrainCeoConfigSchema>

@@ -18,7 +18,7 @@ describe("brain/vault/scaffold", () => {
     }
   })
 
-  test("creates all 9 directories", async () => {
+  test("creates all 14 directories", async () => {
     // #given - a valid vault path
     const vaultPath = join(TEST_DIR, "vault-dirs")
     mkdirSync(vaultPath, { recursive: true })
@@ -38,6 +38,11 @@ describe("brain/vault/scaffold", () => {
       paths.weeklyArchive,
       paths.monthlyArchive,
       paths.quarterlyArchive,
+      paths.ceo,
+      paths.peopleStore,
+      paths.decisionsStore,
+      paths.commitmentsStore,
+      paths.ceoMeetings,
     ]
     for (const dir of expectedDirs) {
       expect(existsSync(dir)).toBe(true)
@@ -114,5 +119,23 @@ describe("brain/vault/scaffold", () => {
     // #then
     expect(result.errors.length).toBeGreaterThan(0)
     expect(result.errors[0]).toContain("not a directory")
+  })
+
+  test("creates CEO directories on scaffold", async () => {
+    // #given
+    const vaultPath = join(TEST_DIR, "vault-ceo")
+    mkdirSync(vaultPath, { recursive: true })
+    const paths = createBrainPaths(vaultPath)
+
+    // #when
+    const result = await scaffoldBrainVault(paths)
+
+    // #then
+    expect(existsSync(paths.ceo)).toBe(true)
+    expect(existsSync(paths.peopleStore)).toBe(true)
+    expect(existsSync(paths.decisionsStore)).toBe(true)
+    expect(existsSync(paths.commitmentsStore)).toBe(true)
+    expect(existsSync(paths.ceoMeetings)).toBe(true)
+    expect(result.errors).toHaveLength(0)
   })
 })

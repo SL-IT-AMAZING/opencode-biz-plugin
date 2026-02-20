@@ -1,2 +1,6 @@
 export { createBrainTools } from "./tools"
+export { createMeetingTools } from "./meeting-tools"
+export { createDecisionTools } from "./decision-tools"
+export { createPeopleTools } from "./people-tools"
+export { createCommitmentTools } from "./commitment-tools"
 export type { BrainToolDeps } from "./types"

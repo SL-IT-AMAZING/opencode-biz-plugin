@@ -41,6 +41,11 @@ export async function scaffoldBrainVault(paths: BrainPaths): Promise<ScaffoldRes
     paths.weeklyArchive,
     paths.monthlyArchive,
     paths.quarterlyArchive,
+    paths.ceo,
+    paths.peopleStore,
+    paths.decisionsStore,
+    paths.commitmentsStore,
+    paths.ceoMeetings,
   ]
 
   for (const dir of dirs) {

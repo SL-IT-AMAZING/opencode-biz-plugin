@@ -40,6 +40,19 @@ describe("brain/vault/paths", () => {
       expect(paths.lockFile).toBe(join(resolve(vaultPath), "_brain", "locks", "writer.lock"))
     })
 
+    test("returns correct CEO paths for default _brain dir", () => {
+      // #given
+      const vaultPath = "/tmp/my-vault"
+      // #when
+      const paths = createBrainPaths(vaultPath)
+      // #then
+      expect(paths.ceo).toBe(join(resolve(vaultPath), "_brain", "ceo"))
+      expect(paths.peopleStore).toBe(join(resolve(vaultPath), "_brain", "ceo", "people"))
+      expect(paths.decisionsStore).toBe(join(resolve(vaultPath), "_brain", "ceo", "decisions"))
+      expect(paths.commitmentsStore).toBe(join(resolve(vaultPath), "_brain", "ceo", "commitments"))
+      expect(paths.ceoMeetings).toBe(join(resolve(vaultPath), "_brain", "ceo", "meetings"))
+    })
+
     test("returns correct paths with custom brain dir name", () => {
       // #given - a vault path and custom brain directory
       const vaultPath = "/tmp/my-vault"
@@ -53,6 +66,17 @@ describe("brain/vault/paths", () => {
       expect(paths.working).toBe(join(resolve(vaultPath), customDir, "working"))
       expect(paths.soulFile).toBe(join(resolve(vaultPath), customDir, "soul.md"))
       expect(paths.lockFile).toBe(join(resolve(vaultPath), customDir, "locks", "writer.lock"))
+    })
+
+    test("CEO paths use custom brain dir", () => {
+      // #given
+      const vaultPath = "/tmp/my-vault"
+      const customDir = ".brain-custom"
+      // #when
+      const paths = createBrainPaths(vaultPath, customDir)
+      // #then
+      expect(paths.ceo).toBe(join(resolve(vaultPath), customDir, "ceo"))
+      expect(paths.peopleStore).toBe(join(resolve(vaultPath), customDir, "ceo", "people"))
     })
 
     test("all path fields resolve to absolute paths under vault", () => {
@@ -80,6 +104,11 @@ describe("brain/vault/paths", () => {
         paths.dbFile,
         paths.stateFile,
         paths.lockFile,
+        paths.ceo,
+        paths.peopleStore,
+        paths.decisionsStore,
+        paths.commitmentsStore,
+        paths.ceoMeetings,
       ]
 
       for (const p of allPaths) {
