@@ -14,12 +14,13 @@
 3. [어떤 원리로 동작하나요?](#어떤-원리로-동작하나요)
 4. [설치 방법](#설치-방법)
 5. [사용법](#사용법)
-6. [AI 에이전트가 쓸 수 있는 도구 5가지](#ai-에이전트가-쓸-수-있는-도구-5가지)
-7. [자동으로 일어나는 일들](#자동으로-일어나는-일들)
-8. [폴더 구조 설명](#폴더-구조-설명)
-9. [설정 (선택사항)](#설정-선택사항)
-10. [개발자를 위한 아키텍처 상세](#개발자를-위한-아키텍처-상세)
-11. [자주 묻는 질문](#자주-묻는-질문)
+6. [AI 에이전트가 쓸 수 있는 도구](#ai-에이전트가-쓸-수-있는-도구)
+7. [CEO 업무 도구 7가지](#ceo-업무-도구-7가지)
+8. [자동으로 일어나는 일들](#자동으로-일어나는-일들)
+9. [폴더 구조 설명](#폴더-구조-설명)
+10. [설정 (선택사항)](#설정-선택사항)
+11. [개발자를 위한 아키텍처 상세](#개발자를-위한-아키텍처-상세)
+12. [자주 묻는 질문](#자주-묻는-질문)
 
 ---
 
@@ -249,7 +250,7 @@ Obsidian vault가 없으면 `opencode.json`에서 직접 경로를 지정할 수
 
 ---
 
-## AI 에이전트가 쓸 수 있는 도구 5가지
+## AI 에이전트가 쓸 수 있는 도구
 
 ### 1. `brain_search` — 기억 검색
 
@@ -310,6 +311,99 @@ brain_consolidate scope:"full"      # 전체 정리 (백필 + 주간/월간)
 - **working**: 지금까지의 이벤트를 working memory로 정리
 - **daily**: 오늘 하루를 DailyMemory로 요약
 - **full**: 빠진 일일 요약 백필 + 주간 아카이브 + 월간 아카이브 생성
+
+---
+
+## CEO 업무 도구 7가지
+
+스타트업 대표의 업무 흐름을 지원하는 전용 도구들입니다. 자연어로 AI에게 요청하면 됩니다.
+
+### 1. `brain_log_meeting` — 회의록 기록
+
+회의를 기록하면 자동으로 참석자 프로필 생성, 약속 추적, 이벤트 로깅이 함께 실행됩니다.
+
+```
+"오늘 투자자 미팅 정리해줘. 참석자는 김대표, 박투자자.
+ 논의 내용: 시리즈 A 일정 협의.
+ 결정: 3월 펀딩 시작.
+ 액션: 김대표가 피칭 덱 3월 15일까지 준비"
+```
+
+**자동으로 일어나는 일:**
+- 📝 Obsidian vault에 마크다운 회의록 생성
+- 👤 새 참석자 자동으로 인물 프로필 생성
+- ✅ 액션 아이템을 약속(commitment)으로 자동 추적
+- 📼 Akashic Record에 이벤트 기록
+
+### 2. `brain_log_decision` — 의사결정 기록
+
+```
+"가격을 월 99,000원으로 결정했어.
+ 이유: 경쟁사 분석 결과 최적 가격대.
+ 참여자: 마케팅팀장, 나"
+```
+
+### 3. `brain_decision_history` — 의사결정 이력 조회
+
+```
+"지난달 가격 관련 결정 뭐 있었지?"
+"박투자자랑 한 결정들 보여줘"
+```
+
+키워드 검색, 참여자 필터, 날짜 범위, 주제 필터를 지원합니다.
+
+### 4. `brain_people_lookup` — 인물 조회
+
+```
+"투자자 연락처 보여줘"          → relationship: "investor" 필터
+"테크스타트업 사람들 누가 있지?"  → company 필터
+"김철수 정보 알려줘"            → name 검색
+```
+
+이름, 역할, 회사, 관계 유형(team/investor/advisor/partner 등)으로 검색할 수 있습니다.
+
+### 5. `brain_relationship_map` — 관계도 조회
+
+```
+"김대표 관계도 보여줘"
+```
+
+특정 인물을 중심으로 공동 의사결정에 참여한 사람들의 네트워크를 보여줍니다.
+
+### 6. `brain_track_commitment` — 약속 추적
+
+```
+"재무 모델 업데이트를 이사업개발이 3월 1일까지 해야 해"
+```
+
+### 7. `brain_check_commitments` — 약속 확인
+
+```
+"밀린 약속 뭐 있어?"           → overdue_only: true
+"김대표 약속 상태 보여줘"       → person: "김대표"
+"완료된 약속만"                → status: "done"
+```
+
+상태(pending/in_progress/done), 기한 초과 여부, 담당자별 필터를 지원합니다.
+
+---
+
+### CEO 도구 폴더 구조
+
+```
+_brain/
+├── ceo/                             # 🏢 CEO 업무 데이터
+│   ├── meetings/                    # 회의록 마크다운 파일
+│   │   ├── 2026-02-20-weekly-sync.md
+│   │   └── 2026-02-21-investor-update.md
+│   ├── decisions/                   # 의사결정 기록 + JSONL 스토어
+│   │   ├── 2026-02-20-pricing.md
+│   │   └── decisions.jsonl
+│   ├── people/                      # 인물 프로필 JSONL 스토어
+│   │   └── people.jsonl
+│   └── commitments/                 # 약속 추적 JSONL 스토어
+│       └── commitments.jsonl
+```
 
 ---
 
@@ -477,9 +571,9 @@ _brain/
               │      Memory        Monthly Archive
               │           │           │
        ┌──────▼───────────▼───────────▼──────┐
-       │          Brain Tools (5개)           │
-       │  search | get | write | recall |    │
-       │  consolidate                        │
+        │          Brain Tools (12개)          │
+        │  기존 5개 + CEO 전용 7개             │
+        │                                      │
        └──────────────┬──────────────────────┘
                       │
               ┌───────▼───────┐
@@ -502,7 +596,7 @@ _brain/
 | **Search** | `src/brain/search/` | SQLite FTS5 + 벡터 검색 + RRF 퓨전 + 시간 감쇠 + MMR |
 | **Consolidation** | `src/brain/consolidation/` | Micro(세션 내) + Daily + Weekly + Monthly 정리 |
 | **Heartbeat** | `src/brain/heartbeat/` | 시스템 프롬프트에 자동 메모리 주입, 세션별 캐시 |
-| **Tools** | `src/tools/` | 5개 brain_* 도구 정의 |
+| **Tools** | `src/tools/` | 12개 brain_* 도구 정의 (기존 5 + CEO 7) |
 | **Hooks** | `src/hooks/` | OpenCode 플러그인 훅 (compaction, system transform) |
 
 ### 검색 파이프라인 상세
@@ -613,7 +707,7 @@ bun test src/brain/heartbeat/
 bun run tsc --noEmit
 ```
 
-**현재: 297 tests, 1071 assertions, 0 failures**
+**현재: 424 tests, 0 failures**
 
 ## 라이선스
 
