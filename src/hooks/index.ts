@@ -1,6 +1,8 @@
 import type { PluginInput } from "@opencode-ai/plugin"
 import type { MicroConsolidator } from "../brain/consolidation/types"
 import type { Heartbeat } from "../brain/heartbeat/types"
+import type { ProactiveEngine } from "../brain/proactive/types"
+import type { DeliveryManager } from "../brain/proactive/delivery"
 import { log } from "../shared/logger"
 
 interface CompactingInput {
@@ -31,6 +33,8 @@ interface EventInput {
 interface BrainHookDeps {
   microConsolidator: MicroConsolidator | null
   heartbeat: Heartbeat | null
+  proactiveEngine: ProactiveEngine | null
+  deliveryManager: DeliveryManager | null
 }
 
 const HEARTBEAT_MARKER = "<!-- brain-heartbeat:v1 -->"
@@ -53,6 +57,19 @@ export function createBrainHook(ctx: PluginInput, deps: BrainHookDeps) {
         }
       } catch (err) {
         log("[brain-hook] heartbeat error", { error: err instanceof Error ? err.message : String(err) })
+      }
+
+      if (deps.proactiveEngine && deps.deliveryManager) {
+        try {
+          const currentHour = new Date().getHours()
+          const proactiveMessage = await deps.proactiveEngine.evaluate(input.sessionID, currentHour)
+          if (proactiveMessage) {
+            const section = deps.deliveryManager.formatSystemPromptSection(proactiveMessage)
+            output.system.push(section)
+          }
+        } catch (err) {
+          log("[brain-hook] proactive error", { error: err instanceof Error ? err.message : String(err) })
+        }
       }
     },
 

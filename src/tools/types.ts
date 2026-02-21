@@ -4,6 +4,8 @@ import type { MicroConsolidator } from "../brain/consolidation/types"
 import type { SleepConsolidator } from "../brain/consolidation/sleep-consolidator"
 import type { BrainPaths } from "../brain/vault/paths"
 import type { PersonStore, DecisionStore, CommitmentStore } from "../brain/stores/types"
+import type { ProactiveEngine } from "../brain/proactive/types"
+import type { MorningBriefGenerator } from "../brain/proactive/morning-brief"
 
 export interface BrainToolDeps {
   paths: BrainPaths
@@ -19,4 +21,6 @@ export interface BrainToolDeps {
   commitmentStore: CommitmentStore | null
   akashicLogger: AkashicLogger | null
   entityIndex: EntityIndex | null
+  proactiveEngine: ProactiveEngine | null
+  morningBriefGenerator: MorningBriefGenerator | null
 }

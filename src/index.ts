@@ -15,18 +15,25 @@ import { createMicroConsolidator } from "./brain/consolidation/micro-consolidato
 import { createDailyConsolidator } from "./brain/consolidation/daily-consolidator"
 import { createArchivalRollup } from "./brain/consolidation/archival-rollup"
 import { createSleepConsolidator } from "./brain/consolidation/sleep-consolidator"
-import { createBrainTools, createMeetingTools, createDecisionTools, createPeopleTools, createCommitmentTools } from "./tools"
+import { createBrainTools, createMeetingTools, createDecisionTools, createPeopleTools, createCommitmentTools, createProactiveTools } from "./tools"
 import { createBrainHook } from "./hooks"
 import { createHeartbeat } from "./brain/heartbeat"
 import { createPersonStore } from "./brain/stores/person-store"
 import { createDecisionStore } from "./brain/stores/decision-store"
 import { createCommitmentStore } from "./brain/stores/commitment-store"
+import { createTriggerEngine } from "./brain/proactive/trigger-engine"
+import { createDeliveryManager } from "./brain/proactive/delivery"
+import { createReceptivityTracker } from "./brain/proactive/receptivity"
+import { createMorningBriefGenerator } from "./brain/proactive/morning-brief"
+import { createSpeakConfig, computeScore, shouldSpeak } from "./brain/proactive/scoring"
+import type { ProactiveEngine } from "./brain/proactive/types"
 import {
   BrainConfigSchema,
   BrainWatchConfigSchema,
   BrainEmbeddingConfigSchema,
   BrainSearchConfigSchema,
   BrainConsolidationConfigSchema,
+  BrainProactiveConfigSchema,
 } from "./brain/config"
 import type { BrainConfig } from "./brain/config"
 import { detectVaultPath } from "./brain/vault/paths"
@@ -151,6 +158,77 @@ const BrainPlugin: Plugin = async (ctx) => {
   const commitmentStore = createCommitmentStore(system.paths.commitmentsStore)
   const entityIndex = createEntityIndex(db)
 
+  // Phase 3: Proactive engine
+  const proactiveConfig = BrainProactiveConfigSchema.parse(fullConfig.proactive ?? {})
+  let proactiveEngine: ProactiveEngine | null = null
+  let morningBriefGenerator: ReturnType<typeof createMorningBriefGenerator> | null = null
+  let proactiveDeliveryManager: ReturnType<typeof createDeliveryManager> | null = null
+
+  if (proactiveConfig.enabled) {
+    const speakConfig = createSpeakConfig({
+      threshold: proactiveConfig.threshold,
+      daily_budget: proactiveConfig.daily_budget,
+      min_interval_minutes: proactiveConfig.min_interval_minutes,
+      quiet_hours: { start: proactiveConfig.quiet_hours_start, end: proactiveConfig.quiet_hours_end },
+    })
+
+    const triggerEngine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore,
+      akashicReader,
+      dailyConsolidator,
+    })
+
+    proactiveDeliveryManager = createDeliveryManager()
+    const receptivityTracker = createReceptivityTracker(join(system.paths.brain, "receptivity.jsonl"))
+
+    morningBriefGenerator = createMorningBriefGenerator({
+      dailyConsolidator,
+      commitmentStore,
+      decisionStore,
+    })
+
+    proactiveEngine = {
+      async evaluate(sessionId, currentHour) {
+        const triggers = await triggerEngine.evaluateTriggers(sessionId, currentHour)
+        if (triggers.length === 0) return null
+
+        const bestTrigger = triggers[0]
+        const receptivityScore = await receptivityTracker.getReceptivityScore(
+          bestTrigger.trigger.type,
+          bestTrigger.trigger.subtype,
+        )
+
+        const score = computeScore({
+          urgency: bestTrigger.urgency,
+          attention_state: 0.5,
+          time_of_day: currentHour >= 8 && currentHour <= 18 ? 0.8 : 0.3,
+          recency: 1.0,
+          receptivity: receptivityScore,
+        })
+
+        const decision = shouldSpeak(score, speakConfig, proactiveDeliveryManager!.getBudgetState(), currentHour)
+        if (!decision.speak) return null
+
+        const message = proactiveDeliveryManager!.formatMessage(bestTrigger.trigger, bestTrigger.message_draft, decision.score)
+        proactiveDeliveryManager!.recordDelivery()
+        return message
+      },
+      async recordReaction(record) {
+        await receptivityTracker.recordReaction(record)
+      },
+      getBudgetState() {
+        return proactiveDeliveryManager!.getBudgetState()
+      },
+      resetBudget() {
+        proactiveDeliveryManager!.resetBudget()
+      },
+    }
+
+    log("Proactive engine enabled", { threshold: speakConfig.threshold, budget: speakConfig.daily_budget })
+  }
+
   const toolDeps = {
     paths: system.paths,
     db,
@@ -165,6 +243,8 @@ const BrainPlugin: Plugin = async (ctx) => {
     commitmentStore,
     akashicLogger,
     entityIndex,
+    proactiveEngine,
+    morningBriefGenerator,
   }
 
   const tools = {
@@ -173,6 +253,7 @@ const BrainPlugin: Plugin = async (ctx) => {
     ...createDecisionTools(toolDeps),
     ...createPeopleTools(toolDeps),
     ...createCommitmentTools(toolDeps),
+    ...createProactiveTools({ proactiveEngine, morningBriefGenerator }),
   }
 
   const heartbeat = createHeartbeat({
@@ -182,7 +263,7 @@ const BrainPlugin: Plugin = async (ctx) => {
     hybridSearcher,
   })
 
-  const hook = createBrainHook(ctx, { microConsolidator, heartbeat })
+  const hook = createBrainHook(ctx, { microConsolidator, heartbeat, proactiveEngine, deliveryManager: proactiveDeliveryManager })
 
   return {
     tool: tools,

@@ -139,6 +139,8 @@ function createStubDeps(root: string): BrainToolDeps {
     commitmentStore: null,
     akashicLogger: null,
     entityIndex: null,
+    proactiveEngine: null,
+    morningBriefGenerator: null,
   }
 }
 

@@ -174,6 +174,8 @@ function createMockDeps(tmpDir: string): BrainToolDeps {
       close: async () => {},
     },
     entityIndex: null,
+    proactiveEngine: null,
+    morningBriefGenerator: null,
   }
 }
 

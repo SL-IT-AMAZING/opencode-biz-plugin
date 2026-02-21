@@ -46,6 +46,15 @@ export const BrainHeartbeatConfigSchema = z.object({
   max_suggestions: z.number().min(1).max(3).default(1),
 })
 
+export const BrainProactiveConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  threshold: z.number().min(0).max(1).default(0.6),
+  daily_budget: z.number().min(0).max(10).default(2),
+  min_interval_minutes: z.number().min(1).max(1440).default(30),
+  quiet_hours_start: z.number().min(0).max(23).default(22),
+  quiet_hours_end: z.number().min(0).max(23).default(8),
+})
+
 export const BrainCeoConfigSchema = z.object({
   enabled: z.boolean().default(false),
   auto_log_meetings: z.boolean().default(true),
@@ -65,6 +74,7 @@ export const BrainConfigSchema = z.object({
   injection: BrainInjectionConfigSchema.optional(),
   search: BrainSearchConfigSchema.optional(),
   heartbeat: BrainHeartbeatConfigSchema.optional(),
+  proactive: BrainProactiveConfigSchema.optional(),
   ceo: BrainCeoConfigSchema.optional(),
 })
 
@@ -75,4 +85,5 @@ export type BrainConsolidationConfig = z.infer<typeof BrainConsolidationConfigSc
 export type BrainInjectionConfig = z.infer<typeof BrainInjectionConfigSchema>
 export type BrainSearchConfig = z.infer<typeof BrainSearchConfigSchema>
 export type BrainHeartbeatConfig = z.infer<typeof BrainHeartbeatConfigSchema>
+export type BrainProactiveConfig = z.infer<typeof BrainProactiveConfigSchema>
 export type BrainCeoConfig = z.infer<typeof BrainCeoConfigSchema>

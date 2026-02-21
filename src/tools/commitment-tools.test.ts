@@ -93,6 +93,8 @@ describe("tools/commitment-tools", () => {
       commitmentStore: createCommitmentStore(join(testDir, "commitments")),
       akashicLogger: null,
       entityIndex: null,
+      proactiveEngine: null,
+      morningBriefGenerator: null,
       ...overrides,
     }
   }

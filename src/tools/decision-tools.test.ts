@@ -193,6 +193,8 @@ function createMockDeps(params: { tmpDir: string; logger: AkashicLogger | null; 
     commitmentStore: null,
     akashicLogger: params.logger,
     entityIndex: null,
+    proactiveEngine: null,
+    morningBriefGenerator: null,
   }
 }
 
