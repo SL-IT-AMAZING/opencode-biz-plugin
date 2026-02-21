@@ -1,0 +1,81 @@
+# opencode-plugin-brain 설치 가이드
+
+이 문서는 `oh-my-opencode`의 설치 UX를 참고해서, 사람/에이전트 모두 동일하게 따라갈 수 있도록 작성된 설치 가이드입니다.
+
+## For Humans
+
+아래 프롬프트를 Claude/OpenCode/Cursor 같은 에이전트에 그대로 붙여 넣으세요:
+
+```text
+다음 설치 가이드를 읽고 내 환경에 맞게 opencode-plugin-brain 설치/설정까지 끝내줘.
+https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs/heads/main/docs/guide/installation.md
+```
+
+## For LLM Agents
+
+설치 가이드 본문을 먼저 가져온 뒤 그대로 실행하세요:
+
+```bash
+curl -s https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs/heads/main/docs/guide/installation.md
+```
+
+## 수동 설치
+
+### 1) 사전 준비
+
+- Bun 설치
+- OpenCode 설치
+- (권장) Obsidian 설치
+
+### 2) 플러그인 설치
+
+프로젝트 루트에서:
+
+```bash
+bun add opencode-plugin-brain
+```
+
+### 3) OpenCode 설정
+
+`opencode.json` 또는 `~/.config/opencode/opencode.json`에 플러그인 등록:
+
+```json
+{
+  "plugin": ["opencode-plugin-brain"],
+  "brain": {
+    "enabled": true,
+    "ceo": { "enabled": true },
+    "proactive": { "enabled": true, "threshold": 0.6 }
+  }
+}
+```
+
+Obsidian 볼트를 자동 감지하지 못하면 경로를 명시하세요:
+
+```json
+{
+  "plugin": ["opencode-plugin-brain"],
+  "brain": {
+    "enabled": true,
+    "vault_path": "/absolute/path/to/your/vault"
+  }
+}
+```
+
+### 4) 실행 및 검증
+
+```bash
+opencode
+```
+
+실행 후 `_brain/` 디렉토리가 생성되고, 다음 요청이 동작하면 설치 성공입니다:
+
+- "어제 뭐 했는지 요약해줘"
+- "밀린 약속 있는지 확인해줘"
+- "이번 주 요약 정리해줘"
+
+## 문제 해결
+
+- vault 자동 감지가 실패하면 `brain.vault_path`를 명시
+- 프로액티브 알림이 너무 많으면 `brain.proactive.threshold`를 높이거나 `brain_proactive_feedback` 사용
+- 설치 직후에는 히스토리가 적어서 검색/요약 품질이 낮을 수 있음 (1~2일 사용 후 안정화)

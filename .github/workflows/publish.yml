@@ -1,0 +1,179 @@
+name: publish
+run-name: "${{ format('release {0}', inputs.version || inputs.bump) }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Bump major, minor, or patch"
+        required: true
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+      version:
+        description: "Override version (e.g., 0.2.0-beta.1). Takes precedence over bump."
+        required: false
+        type: string
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.repository == 'SL-IT-AMAZING/opencode-biz-plugin'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dist_tag: ${{ steps.version.outputs.dist_tag }}
+      skip: ${{ steps.check.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - run: git fetch --force --tags
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Calculate version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            PREV=$(npm view opencode-plugin-brain version 2>/dev/null || echo "0.1.0")
+            BASE="${PREV%%-*}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+            case "${{ inputs.bump }}" in
+              major) VERSION="$((MAJOR+1)).0.0" ;;
+              minor) VERSION="${MAJOR}.$((MINOR+1)).0" ;;
+              *) VERSION="${MAJOR}.${MINOR}.$((PATCH+1))" ;;
+            esac
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          if [[ "$VERSION" == *"-"* ]]; then
+            DIST_TAG=$(echo "$VERSION" | cut -d'-' -f2 | cut -d'.' -f1)
+            echo "dist_tag=${DIST_TAG:-next}" >> "$GITHUB_OUTPUT"
+          else
+            echo "dist_tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "Version: $VERSION"
+
+      - name: Check if already published
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if npm view "opencode-plugin-brain@${VERSION}" version >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "opencode-plugin-brain@${VERSION} already published"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update version
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.argv[1];fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\\n')" "$VERSION"
+
+      - name: Build package
+        if: steps.check.outputs.skip != 'true'
+        run: bun run clean && bun run build
+
+      - name: Publish package
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          TAG_ARG=""
+          if [ -n "${{ steps.version.outputs.dist_tag }}" ]; then
+            TAG_ARG="--tag ${{ steps.version.outputs.dist_tag }}"
+          fi
+          npm publish --access public --provenance $TAG_ARG
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Git commit and tag
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add package.json
+          git diff --cached --quiet || git commit -m "release: v${{ steps.version.outputs.version }}"
+          git tag -f "v${{ steps.version.outputs.version }}"
+          git push origin HEAD
+          git push origin --tags --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: publish
+    if: needs.publish.outputs.skip != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate changelog
+        run: |
+          VERSION="${{ needs.publish.outputs.version }}"
+          PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | grep -v "^v${VERSION}$" | head -n1)
+
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..v${VERSION}"
+          else
+            RANGE="v${VERSION}"
+          fi
+
+          NOTES=$(git log "$RANGE" --oneline --format='- %h %s' | grep -vE "^- [0-9a-f]+ (test:|chore:|ci:|release:)" || true)
+          if [ -z "$NOTES" ]; then
+            NOTES="No notable changes"
+          fi
+
+          printf "%s\n" "$NOTES" > /tmp/changelog.md
+
+      - name: Create GitHub release
+        run: |
+          VERSION="${{ needs.publish.outputs.version }}"
+          gh release view "v${VERSION}" >/dev/null 2>&1 || gh release create "v${VERSION}" --title "v${VERSION}" --notes-file /tmp/changelog.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

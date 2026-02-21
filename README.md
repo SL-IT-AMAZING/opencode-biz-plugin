@@ -170,6 +170,23 @@ AI는 이 정보를 보고 자연스럽게 맥락을 이어갑니다. **유저�
 
 ## 설치 방법
 
+### For Humans (추천)
+
+아래 프롬프트를 AI 에이전트에 그대로 붙여 넣으세요:
+
+```text
+다음 설치 가이드를 읽고 내 환경에 맞게 opencode-plugin-brain 설치/설정까지 끝내줘.
+https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs/heads/main/docs/guide/installation.md
+```
+
+직접 보려면 `docs/guide/installation.md`를 참고하세요.
+
+### For LLM Agents
+
+```bash
+curl -s https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs/heads/main/docs/guide/installation.md
+```
+
 ### 사전 준비물
 
 1. **[Bun](https://bun.sh/)** 설치 (Node.js 대체 런타임)
@@ -856,6 +873,25 @@ bun run tsc --noEmit
 ```
 
 **현재: 650 tests, 0 failures**
+
+## 릴리즈
+
+`oh-my-opencode` 방식과 동일하게, 릴리즈는 로컬 수동 publish가 아니라 **GitHub Actions workflow_dispatch**로 진행합니다.
+
+- 금지: 로컬에서 버전 수동 bump, `bun publish`, `npm publish`
+- 표준: `publish` 워크플로우로 버전 계산/중복 체크/빌드/배포/태그/릴리즈 생성
+
+```bash
+# patch 릴리즈
+gh workflow run publish.yml -R SL-IT-AMAZING/opencode-biz-plugin -f bump=patch
+
+# 버전 직접 지정 (pre-release 포함 가능)
+gh workflow run publish.yml -R SL-IT-AMAZING/opencode-biz-plugin -f version=0.2.0-beta.1
+```
+
+워크플로우:
+- `.github/workflows/ci.yml`: push/PR 검증 (typecheck, test, build)
+- `.github/workflows/publish.yml`: 수동 릴리즈 (버전/태그/배포/릴리즈 노트)
 
 ## 라이선스
 

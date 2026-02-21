@@ -32,6 +32,18 @@
   ],
   "author": "YeonGyu-Kim",
   "license": "SUL-1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SL-IT-AMAZING/opencode-biz-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SL-IT-AMAZING/opencode-biz-plugin/issues"
+  },
+  "homepage": "https://github.com/SL-IT-AMAZING/opencode-biz-plugin#readme",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.0.0"
   },
