@@ -28,6 +28,20 @@ function formatSearchResults(
     .join("\n\n")
 }
 
+function formatCitedSearchResults(
+  results: Array<{ path: string; content: string; combined_score: number; chunk_index: number; provenance: { source_file: string; source_date: string; original_quote: string; event_id?: string } }>,
+): string {
+  if (results.length === 0) return "No results found."
+  return results
+    .map((r, i) => [
+      `[${i + 1}] ${r.path} (chunk ${r.chunk_index}, score: ${r.combined_score.toFixed(3)})`,
+      `Source: ${r.provenance.source_file}`,
+      `Date: ${r.provenance.source_date}`,
+      `Quote: ${truncate(r.provenance.original_quote, 200)}`,
+    ].join("\n"))
+    .join("\n\n")
+}
+
 export function createBrainTools(deps: BrainToolDeps): Record<string, ToolDefinition> {
   let autoConsolidateChecked = false
 
@@ -62,6 +76,15 @@ export function createBrainTools(deps: BrainToolDeps): Record<string, ToolDefini
           combined_score: number
           chunk_index: number
         }>
+
+        // Try cited search first
+        if (deps.hybridSearcher?.searchWithCitations) {
+          const citedResults = await deps.hybridSearcher.searchWithCitations(args.query, {
+            limit,
+            path: args.path,
+          })
+          return formatCitedSearchResults(citedResults)
+        }
 
         if (deps.hybridSearcher) {
           results = await deps.hybridSearcher.search(args.query, {
@@ -203,9 +226,28 @@ export function createBrainTools(deps: BrainToolDeps): Record<string, ToolDefini
 
         if (limited.length === 0) return `No events found for query "${args.query}" in range ${startDate} to ${endDate}.`
 
-        return limited
+        const output = limited
           .map(e => `[${e.timestamp}] ${e.type}: ${typeof e.data === "string" ? e.data : JSON.stringify(e.data)}`)
           .join("\n")
+
+        // Log access event for re-integration
+        if (deps.akashicLogger) {
+          deps.akashicLogger.log({
+            type: "search.performed",
+            source: "cortex",
+            priority: 20,
+            data: {
+              metadata: {
+                query: args.query,
+                from: startDate,
+                to: endDate,
+                results_count: limited.length,
+              },
+            },
+          }).catch(() => {})
+        }
+
+        return output
       } catch (err) {
         return `Error recalling events: ${err instanceof Error ? err.message : String(err)}`
       }

@@ -97,6 +97,33 @@ function createMockDb(): BrainDatabase {
     optimize() {
       return
     },
+    upsertEntity() {
+      return
+    },
+    findEntities() {
+      return []
+    },
+    getEntity() {
+      return undefined
+    },
+    updateEntitySeen() {
+      return
+    },
+    upsertRelation() {
+      return
+    },
+    getRelated() {
+      return []
+    },
+    insertEntityEvent() {
+      return
+    },
+    getEntityEvents() {
+      return []
+    },
+    getEventEntities() {
+      return []
+    },
   }
 }
 
@@ -165,6 +192,7 @@ function createMockDeps(params: { tmpDir: string; logger: AkashicLogger | null; 
     decisionStore: params.decisionStore,
     commitmentStore: null,
     akashicLogger: params.logger,
+    entityIndex: null,
   }
 }
 

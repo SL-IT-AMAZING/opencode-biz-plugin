@@ -3,7 +3,7 @@ import type { BrainSearchConfig } from "../config"
 import type { SearchCandidate } from "../types"
 import { serializeEmbedding } from "./embedding-store"
 import { createHybridSearcher, type HybridSearcherDeps } from "./hybrid-searcher"
-import type { BrainDatabase, EmbeddingProvider, FtsSearcher, VectorSearcher } from "./types"
+import type { BrainDatabase, CitedSearchResult, EmbeddingProvider, FtsSearcher, VectorSearcher } from "./types"
 
 function makeCandidate(id: string, path: string, score: number): SearchCandidate {
   return {
@@ -305,5 +305,174 @@ describe("brain/search/hybrid-searcher", () => {
     const results = await searcher.search("project", { limit: 3 })
 
     expect(results.map(result => result.id)).toEqual(["1", "3", "2"])
+  })
+
+  describe("searchWithCitations", () => {
+    test("#returns cited search results with provenance field", async () => {
+      const ftsResults = [makeCandidate("1", "docs/a.md", 1.0)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const results = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      const typed: CitedSearchResult[] = results
+      expect(typed.length).toBe(1)
+      expect(results[0].provenance).toEqual({
+        source_file: "docs/a.md",
+        source_date: expect.any(String),
+        original_quote: "content-1",
+      })
+    })
+
+    test("#provenance source_file matches candidate path", async () => {
+      const ftsResults = [makeCandidate("2", "notes/project/alpha.md", 0.9)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.path).toBe("notes/project/alpha.md")
+      expect(result.provenance.source_file).toBe(result.path)
+    })
+
+    test("#original quote uses full content when shorter than 200 chars", async () => {
+      const shortContent = "short citation quote"
+      const ftsResults = [{ ...makeCandidate("3", "docs/short.md", 0.8), content: shortContent }]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.original_quote).toBe(shortContent)
+    })
+
+    test("#extracts YYYY-MM-DD date from path", async () => {
+      const ftsResults = [makeCandidate("4", "daily/2024-01-15.md", 1.0)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.source_date).toBe("2024-01-15")
+    })
+
+    test("#extracts and normalizes YYYY/MM/DD date from path", async () => {
+      const ftsResults = [makeCandidate("5", "meetings/2024/01/15-standup.md", 1.0)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.source_date).toBe("2024-01-15")
+    })
+
+    test("#falls back to today's date when path has no date", async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      const ftsResults = [makeCandidate("6", "docs/no-date-note.md", 1.0)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.source_date).toBe(today)
+    })
+
+    test("#reuses search results and preserves candidate ordering", async () => {
+      const ftsResults = [
+        makeCandidate("shared", "docs/shared.md", 1.0),
+        makeCandidate("fts-only", "docs/fts.md", 0.8),
+      ]
+      const vecResults = [
+        makeCandidate("shared", "docs/shared.md", 1.0),
+        makeCandidate("vec-only", "docs/vec.md", 0.7),
+      ]
+      const searcher = createHybridSearcher(makeDeps({
+        fts: makeMockFts(ftsResults),
+        vectorSearcher: makeMockVectorSearcher(vecResults),
+        embeddingProvider: makeMockEmbeddingProvider(),
+      }))
+
+      const searchResults = await searcher.search("project", { limit: 10 })
+      const citedResults = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(citedResults.map(result => result.id)).toEqual(searchResults.map(result => result.id))
+      expect(citedResults.map(result => result.path)).toEqual(searchResults.map(result => result.path))
+      expect(citedResults.map(result => result.combined_score)).toEqual(searchResults.map(result => result.combined_score))
+    })
+
+    test("#returns empty array when underlying search returns empty", async () => {
+      const searcher = createHybridSearcher(makeDeps({
+        fts: makeMockFts([]),
+        vectorSearcher: makeMockVectorSearcher([]),
+        embeddingProvider: makeMockEmbeddingProvider(),
+      }))
+
+      const results = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(results).toEqual([])
+    })
+
+    test("#respects limit option", async () => {
+      const ftsResults = [
+        makeCandidate("1", "docs/a.md", 1.0),
+        makeCandidate("2", "docs/b.md", 0.9),
+        makeCandidate("3", "docs/c.md", 0.8),
+      ]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const results = await searcher.searchWithCitations!("project", { limit: 2 })
+
+      expect(results.length).toBe(2)
+      expect(results.map(result => result.id)).toEqual(["1", "2"])
+    })
+
+    test("#respects path option", async () => {
+      const fts: FtsSearcher = {
+        search: () => [makeCandidate("x", "docs/other.md", 1)],
+        searchByPath: (_query, path) => [makeCandidate("1", path, 1)],
+        highlight: () => [],
+      }
+      const vectorSearcher: VectorSearcher = {
+        search: () => [makeCandidate("y", "docs/other.md", 1)],
+        searchByPath: (_embedding, path) => [makeCandidate("2", path, 1)],
+        invalidateCache: () => {},
+      }
+      const searcher = createHybridSearcher(makeDeps({
+        fts,
+        vectorSearcher,
+        embeddingProvider: makeMockEmbeddingProvider(),
+      }))
+
+      const results = await searcher.searchWithCitations!("project", { path: "docs/target.md", limit: 10 })
+
+      expect(results.length).toBe(2)
+      expect(results.map(result => result.path)).toEqual(["docs/target.md", "docs/target.md"])
+      expect(results.map(result => result.provenance.source_file)).toEqual(["docs/target.md", "docs/target.md"])
+    })
+
+    test("#content exactly 200 chars does not truncate", async () => {
+      const exact200 = "a".repeat(200)
+      const ftsResults = [{ ...makeCandidate("7", "docs/exact.md", 1.0), content: exact200 }]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.original_quote.length).toBe(200)
+      expect(result.provenance.original_quote).toBe(exact200)
+    })
+
+    test("#content longer than 200 chars truncates with ellipsis", async () => {
+      const over200 = "b".repeat(201)
+      const ftsResults = [{ ...makeCandidate("8", "docs/long.md", 1.0), content: over200 }]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.original_quote.length).toBe(203)
+      expect(result.provenance.original_quote).toBe(`${"b".repeat(200)}...`)
+    })
+
+    test("#event_id is undefined by default", async () => {
+      const ftsResults = [makeCandidate("9", "docs/a.md", 1.0)]
+      const searcher = createHybridSearcher(makeDeps({ fts: makeMockFts(ftsResults) }))
+
+      const [result] = await searcher.searchWithCitations!("project", { limit: 10 })
+
+      expect(result.provenance.event_id).toBeUndefined()
+    })
   })
 })

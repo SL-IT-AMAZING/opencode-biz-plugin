@@ -7,6 +7,7 @@ import { createMarkdownIndexer } from "./brain/search/indexer"
 import { createEmbeddingProvider } from "./brain/search/embedding-provider"
 import { createVectorSearcher } from "./brain/search/vector-searcher"
 import { createHybridSearcher } from "./brain/search/hybrid-searcher"
+import { createEntityIndex } from "./brain/search/entity-index"
 import { createAkashicReader } from "./brain/akashic/reader"
 import { createThalamusWatcher } from "./brain/thalamus/watcher"
 import { createAkashicLogger } from "./brain/akashic/logger"
@@ -148,6 +149,7 @@ const BrainPlugin: Plugin = async (ctx) => {
   const personStore = createPersonStore(system.paths.peopleStore)
   const decisionStore = createDecisionStore(system.paths.decisionsStore)
   const commitmentStore = createCommitmentStore(system.paths.commitmentsStore)
+  const entityIndex = createEntityIndex(db)
 
   const toolDeps = {
     paths: system.paths,
@@ -162,6 +164,7 @@ const BrainPlugin: Plugin = async (ctx) => {
     decisionStore,
     commitmentStore,
     akashicLogger,
+    entityIndex,
   }
 
   const tools = {

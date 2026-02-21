@@ -93,6 +93,15 @@ function createStubDeps(root: string): BrainToolDeps {
     getAllFileStates: () => ({}),
     getStats: () => ({ totalChunks: 0, totalFiles: 0, dbSizeBytes: 0 }),
     optimize: () => {},
+    upsertEntity: () => {},
+    findEntities: () => [],
+    getEntity: () => undefined,
+    updateEntitySeen: () => {},
+    upsertRelation: () => {},
+    getRelated: () => [],
+    insertEntityEvent: () => {},
+    getEntityEvents: () => [],
+    getEventEntities: () => [],
   }
 
   const fts: FtsSearcher = {
@@ -129,6 +138,7 @@ function createStubDeps(root: string): BrainToolDeps {
     decisionStore,
     commitmentStore: null,
     akashicLogger: null,
+    entityIndex: null,
   }
 }
 

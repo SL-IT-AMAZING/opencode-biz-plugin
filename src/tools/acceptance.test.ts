@@ -126,6 +126,15 @@ function createMockDeps(tmpDir: string): BrainToolDeps {
       getAllFileStates: () => ({}),
       getStats: () => ({ totalChunks: 0, totalFiles: 0, dbSizeBytes: 0 }),
       optimize: () => {},
+      upsertEntity: () => {},
+      findEntities: () => [],
+      getEntity: () => undefined,
+      updateEntitySeen: () => {},
+      upsertRelation: () => {},
+      getRelated: () => [],
+      insertEntityEvent: () => {},
+      getEntityEvents: () => [],
+      getEventEntities: () => [],
     },
     fts: {
       search: () => [],
@@ -164,6 +173,7 @@ function createMockDeps(tmpDir: string): BrainToolDeps {
       getLogPath: () => join(paths.akashicDaily, "test.jsonl"),
       close: async () => {},
     },
+    entityIndex: null,
   }
 }
 

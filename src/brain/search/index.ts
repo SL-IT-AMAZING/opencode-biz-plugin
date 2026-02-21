@@ -3,6 +3,7 @@ export { createFtsSearcher } from "./fts"
 export { createMarkdownIndexer } from "./indexer"
 export { splitMarkdownChunks } from "./chunker"
 export { createEmbeddingProvider, createNullEmbeddingProvider } from "./embedding-provider"
+export { createEntityIndex } from "./entity-index"
 export { serializeEmbedding, deserializeEmbedding, normalizeEmbedding } from "./embedding-store"
 export type {
   BrainDatabase,
@@ -18,6 +19,8 @@ export type {
   HybridScorer,
   HybridSearcher,
   HybridSearchOptions,
+  CitedSearchResult,
+  EntityIndex,
 } from "./types"
 export { cosineSimilarity, dotProduct } from "./cosine"
 export { createHybridScorer } from "./hybrid-scorer"

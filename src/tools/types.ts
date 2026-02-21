@@ -1,4 +1,4 @@
-import type { BrainDatabase, FtsSearcher, MarkdownIndexer, HybridSearcher } from "../brain/search/types"
+import type { BrainDatabase, FtsSearcher, MarkdownIndexer, HybridSearcher, EntityIndex } from "../brain/search/types"
 import type { AkashicReader, AkashicLogger } from "../brain/akashic/types"
 import type { MicroConsolidator } from "../brain/consolidation/types"
 import type { SleepConsolidator } from "../brain/consolidation/sleep-consolidator"
@@ -18,4 +18,5 @@ export interface BrainToolDeps {
   decisionStore: DecisionStore | null
   commitmentStore: CommitmentStore | null
   akashicLogger: AkashicLogger | null
+  entityIndex: EntityIndex | null
 }

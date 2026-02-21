@@ -92,6 +92,7 @@ describe("tools/commitment-tools", () => {
       decisionStore: null,
       commitmentStore: createCommitmentStore(join(testDir, "commitments")),
       akashicLogger: null,
+      entityIndex: null,
       ...overrides,
     }
   }

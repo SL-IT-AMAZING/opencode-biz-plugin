@@ -6,6 +6,7 @@ import { mmrRerank } from "./mmr"
 import { applyTemporalDecay, type TemporalMetadata } from "./temporal-decay"
 import type {
   BrainDatabase,
+  CitedSearchResult,
   EmbeddingProvider,
   FtsSearcher,
   HybridSearchOptions,
@@ -88,6 +89,27 @@ export function createHybridSearcher(deps: HybridSearcherDeps): HybridSearcher {
       } catch {
         return []
       }
+    },
+    async searchWithCitations(query: string, options?: HybridSearchOptions): Promise<CitedSearchResult[]> {
+      const candidates = await this.search(query, options)
+
+      return candidates.map(candidate => {
+        const dateMatch = candidate.path.match(/(\d{4}[-/]\d{2}[-/]\d{2})/)
+        const sourceDate = dateMatch ? dateMatch[1].replace(/\//g, "-") : new Date().toISOString().slice(0, 10)
+
+        const originalQuote = candidate.content.length > 200
+          ? `${candidate.content.slice(0, 200)}...`
+          : candidate.content
+
+        return {
+          ...candidate,
+          provenance: {
+            source_file: candidate.path,
+            source_date: sourceDate,
+            original_quote: originalQuote,
+          },
+        }
+      })
     },
   }
 }
