@@ -114,6 +114,7 @@ class FakeCommitmentStore implements CommitmentStore {
 
 class FakeDecisionStore implements DecisionStore {
   public reversed: DecisionRecord[] = []
+  public decisions: DecisionRecord[] = []
   public throwOnReversed = false
 
   async add(): Promise<void> {}
@@ -141,6 +142,9 @@ class FakeDecisionStore implements DecisionStore {
   }
 
   async list(): Promise<DecisionRecord[]> {
+    if (this.decisions.length > 0) {
+      return this.decisions
+    }
     return this.reversed
   }
 
@@ -461,5 +465,311 @@ describe("brain/proactive/trigger-engine", () => {
     const morningBrief = result.find(item => item.trigger.type === "time" && item.trigger.subtype === "morning_brief")
     expect(morningBrief).toBeDefined()
     expect(morningBrief?.message_draft).toContain("Overdue commitments: 2")
+  })
+
+  test("#given overdue commitment with due_date 5 days ago #when evaluateTriggers #then urgency scales to 0.95", async () => {
+    const currentDate = mondayDate()
+    commitmentStore.overdue = [makeCommitment({
+      description: "Follow up with vendor",
+      due_date: addDays(currentDate, -5).toISOString(),
+    })]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-17", 11, { currentDate })
+    const overdueTrigger = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "commitment_overdue")
+    expect(overdueTrigger?.urgency).toBeCloseTo(0.95, 5)
+    expect(overdueTrigger?.message_draft).toContain("Overdue by 5 days")
+  })
+
+  test("#given overdue commitment with due_date 25 days ago #when evaluateTriggers #then urgency is capped at 1.0", async () => {
+    const currentDate = mondayDate()
+    commitmentStore.overdue = [makeCommitment({
+      description: "Legacy migration",
+      due_date: addDays(currentDate, -25).toISOString(),
+    })]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-18", 11, { currentDate })
+    const overdueTrigger = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "commitment_overdue")
+    expect(overdueTrigger?.urgency).toBe(1)
+  })
+
+  test("#given overdue commitment without due_date #when evaluateTriggers #then keeps default urgency and message", async () => {
+    commitmentStore.overdue = [makeCommitment({ description: "Unscheduled task", due_date: undefined })]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-19", 11, { currentDate: mondayDate() })
+    const overdueTrigger = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "commitment_overdue")
+    expect(overdueTrigger?.urgency).toBe(0.9)
+    expect(overdueTrigger?.message_draft).toBe("Overdue: Unscheduled task")
+  })
+
+  test("#given invalid overdue due_date #when evaluateTriggers #then falls back to default urgency", async () => {
+    commitmentStore.overdue = [makeCommitment({ description: "Bad date", due_date: "not-a-date" })]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-20", 11, { currentDate: mondayDate() })
+    const overdueTrigger = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "commitment_overdue")
+    expect(overdueTrigger?.urgency).toBe(0.9)
+    expect(overdueTrigger?.message_draft).toBe("Overdue: Bad date")
+  })
+
+  test("#given similar decision titles and opposing outcomes #when evaluateTriggers #then adds implicit decision reversal trigger", async () => {
+    decisionStore.decisions = [
+      makeDecision({ id: "dec-1", status: "decided", title: "Adopt postgres as primary database", decision: "Adopt Postgres", reasoning: "Strong consistency" }),
+      makeDecision({ id: "dec-2", status: "implemented", title: "Adopt postgres as primary database now", decision: "Move to MySQL", reasoning: "Operational familiarity" }),
+    ]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-21", 11, { currentDate: mondayDate() })
+    const implicitTrigger = result.find(item => item.message_draft.startsWith("Potential decision reversal detected:"))
+    expect(implicitTrigger).toBeDefined()
+    expect(implicitTrigger?.urgency).toBe(0.65)
+  })
+
+  test("#given similar titles but identical decision and reasoning #when evaluateTriggers #then does not add implicit reversal", async () => {
+    decisionStore.decisions = [
+      makeDecision({ id: "dec-1", status: "decided", title: "Switch to edge cache strategy", decision: "Enable edge cache", reasoning: "Improve latency" }),
+      makeDecision({ id: "dec-2", status: "implemented", title: "Switch to edge cache strategy now", decision: "Enable edge cache", reasoning: "Improve latency" }),
+    ]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-22", 11, { currentDate: mondayDate() })
+    expect(result.some(item => item.message_draft.startsWith("Potential decision reversal detected:"))).toBe(false)
+  })
+
+  test("#given low title overlap decisions #when evaluateTriggers #then does not add implicit reversal", async () => {
+    decisionStore.decisions = [
+      makeDecision({ id: "dec-1", status: "decided", title: "Move CI to self hosted runners", decision: "Self-host CI", reasoning: "Control cost" }),
+      makeDecision({ id: "dec-2", status: "implemented", title: "Rename navigation labels", decision: "Keep hosted CI", reasoning: "Simplicity" }),
+    ]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-23", 11, { currentDate: mondayDate() })
+    expect(result.some(item => item.message_draft.startsWith("Potential decision reversal detected:"))).toBe(false)
+  })
+
+  test("#given non-final decision statuses #when evaluateTriggers #then skips implicit reversal detection", async () => {
+    decisionStore.decisions = [
+      makeDecision({ id: "dec-1", status: "proposed", title: "Adopt bun runtime", decision: "Use Bun", reasoning: "Fast startup" }),
+      makeDecision({ id: "dec-2", status: "proposed", title: "Adopt bun runtime soon", decision: "Stay with Node", reasoning: "Ecosystem" }),
+    ]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-24", 11, { currentDate: mondayDate() })
+    expect(result.some(item => item.message_draft.startsWith("Potential decision reversal detected:"))).toBe(false)
+  })
+
+  test("#given explicit and implicit reversals exceed limit #when evaluateTriggers #then returns at most 3 decision reversal triggers", async () => {
+    decisionStore.reversed = [
+      makeDecision({ id: "dec-r1", title: "Rollback search index" }),
+      makeDecision({ id: "dec-r2", title: "Undo CDN migration" }),
+      makeDecision({ id: "dec-r3", title: "Revert cache layer" }),
+    ]
+    decisionStore.decisions = [
+      makeDecision({ id: "dec-1", status: "decided", title: "Adopt event sourcing architecture", decision: "Adopt", reasoning: "Audit trail" }),
+      makeDecision({ id: "dec-2", status: "implemented", title: "Adopt event sourcing architecture now", decision: "Do not adopt", reasoning: "Complexity" }),
+    ]
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-25", 11, { currentDate: mondayDate() })
+    const reversalTriggers = result.filter(item => item.trigger.type === "pattern" && item.trigger.subtype === "decision_reversal")
+    expect(reversalTriggers).toHaveLength(3)
+  })
+
+  test("#given repeated topics across 3 days #when evaluateTriggers #then emits repeated_topic trigger", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["database"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["database", "api"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -2)), makeDaily({ topics: ["database"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-26", 11, { currentDate })
+    const repeated = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")
+    expect(repeated).toBeDefined()
+    if (repeated?.trigger.type === "pattern" && repeated.trigger.subtype === "repeated_topic") {
+      expect(repeated.trigger.topic).toBe("database")
+      expect(repeated.trigger.count).toBe(3)
+    }
+    expect(repeated?.urgency).toBe(0.4)
+  })
+
+  test("#given repeated topic appears multiple times in one day #when evaluateTriggers #then counts that day once", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["ops", "ops", "OPS"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["ops"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -2)), makeDaily({ topics: ["Ops"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-27", 11, { currentDate })
+    const repeated = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")
+    expect(repeated).toBeDefined()
+    if (repeated?.trigger.type === "pattern" && repeated.trigger.subtype === "repeated_topic") {
+      expect(repeated.trigger.count).toBe(3)
+    }
+  })
+
+  test("#given 4 repeated topics #when evaluateTriggers #then returns top 3 by count descending", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["api", "infra", "billing", "search"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["api", "infra", "billing", "search"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -2)), makeDaily({ topics: ["api", "infra", "billing"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -3)), makeDaily({ topics: ["api", "infra"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -4)), makeDaily({ topics: ["api"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-28", 11, { currentDate })
+    const repeated = result.filter(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")
+    expect(repeated).toHaveLength(3)
+    if (repeated[0]?.trigger.type === "pattern" && repeated[0].trigger.subtype === "repeated_topic") {
+      expect(repeated[0].trigger.topic).toBe("api")
+      expect(repeated[0].trigger.count).toBe(5)
+    }
+    if (repeated[1]?.trigger.type === "pattern" && repeated[1].trigger.subtype === "repeated_topic") {
+      expect(repeated[1].trigger.topic).toBe("infra")
+      expect(repeated[1].trigger.count).toBe(4)
+    }
+    if (repeated[2]?.trigger.type === "pattern" && repeated[2].trigger.subtype === "repeated_topic") {
+      expect(repeated[2].trigger.topic).toBe("billing")
+      expect(repeated[2].trigger.count).toBe(3)
+    }
+  })
+
+  test("#given topic appears in only 2 days #when evaluateTriggers #then no repeated_topic trigger", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["build"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["build"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-29", 11, { currentDate })
+    expect(result.some(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")).toBe(false)
+  })
+
+  test("#given old topic outside 7 day window #when evaluateTriggers #then ignores old occurrence", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["security"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["security"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -8)), makeDaily({ topics: ["security"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-30", 11, { currentDate })
+    expect(result.some(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")).toBe(false)
+  })
+
+  test("#given repeated topic detected #when evaluateTriggers #then message follows recurring topic format", async () => {
+    const currentDate = mondayDate()
+    dailyConsolidator.summaries.set(toDateKey(currentDate), makeDaily({ topics: ["quality"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -1)), makeDaily({ topics: ["quality"] }))
+    dailyConsolidator.summaries.set(toDateKey(addDays(currentDate, -2)), makeDaily({ topics: ["quality"] }))
+
+    const engine = createTriggerEngine({
+      commitmentStore,
+      decisionStore,
+      personStore: null,
+      akashicReader: null,
+      dailyConsolidator,
+    })
+
+    const result = await engine.evaluateTriggers("ses-31", 11, { currentDate })
+    const repeated = result.find(item => item.trigger.type === "pattern" && item.trigger.subtype === "repeated_topic")
+    expect(repeated?.message_draft).toBe("Recurring topic: quality (appeared in 3 of last 7 days)")
   })
 })

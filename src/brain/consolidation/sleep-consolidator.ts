@@ -138,6 +138,12 @@ export interface SleepConsolidationResult {
   monthliesGenerated: number
   errors: string[]
   timestamp: string
+  audit_trail?: Array<{
+    action: "weekly_rollup" | "monthly_rollup"
+    period: string
+    confidence: number
+    information_loss_notes: string
+  }>
 }
 
 export interface SleepConsolidatorDeps {
@@ -171,6 +177,7 @@ export function createSleepConsolidator(deps: SleepConsolidatorDeps): SleepConso
       let dailiesGenerated = 0
       let weekliesGenerated = 0
       let monthliesGenerated = 0
+      const auditTrail: NonNullable<SleepConsolidationResult["audit_trail"]> = []
 
       const today = startOfUtcDay(new Date())
       const windowDates = getLastThirtyOneDays(today)
@@ -211,6 +218,12 @@ export function createSleepConsolidator(deps: SleepConsolidatorDeps): SleepConso
           const weeklyArchive = deps.archivalRollup.rollupWeekly(isoWeek.year, isoWeek.week, dailies)
           await deps.archivalRollup.writeWeeklyArchive(weeklyArchive, isoWeek.year, isoWeek.week)
           weekliesGenerated += 1
+          auditTrail.push({
+            action: "weekly_rollup",
+            period: weeklyArchive.period,
+            confidence: weeklyArchive.confidence ?? 0,
+            information_loss_notes: weeklyArchive.information_loss_notes ?? "",
+          })
         } catch (error) {
           errors.push(`weekly rollup failed for ${weekKey(isoWeek)}: ${formatError(error)}`)
         }
@@ -240,6 +253,12 @@ export function createSleepConsolidator(deps: SleepConsolidatorDeps): SleepConso
           const monthlyArchive = deps.archivalRollup.rollupMonthly(month.year, month.month, weeklies)
           await deps.archivalRollup.writeMonthlyArchive(monthlyArchive, month.year, month.month)
           monthliesGenerated += 1
+          auditTrail.push({
+            action: "monthly_rollup",
+            period: monthlyArchive.period,
+            confidence: monthlyArchive.confidence ?? 0,
+            information_loss_notes: monthlyArchive.information_loss_notes ?? "",
+          })
         } catch (error) {
           errors.push(`monthly rollup failed for ${monthKey(month)}: ${formatError(error)}`)
         }
@@ -251,6 +270,7 @@ export function createSleepConsolidator(deps: SleepConsolidatorDeps): SleepConso
         monthliesGenerated,
         errors,
         timestamp: new Date().toISOString(),
+        audit_trail: auditTrail.length > 0 ? auditTrail : undefined,
       }
     },
 

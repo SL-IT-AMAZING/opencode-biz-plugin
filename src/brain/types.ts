@@ -199,6 +199,16 @@ export interface ArchivalMemory {
   key_decisions: Array<{ date: string; decision: string }>
   metrics?: Record<string, number>
   source_count: number
+  /** Original event IDs that contributed to this rollup */
+  source_event_ids?: string[]
+  /** Original daily summary file paths that were aggregated */
+  source_daily_paths?: string[]
+  /** Notes about information omitted during rollup (audit trail) */
+  information_loss_notes?: string
+  /** Confidence score for the rollup quality (0.0 - 1.0) */
+  confidence?: number
+  /** Whether this rollup has been reviewed and by whom */
+  reviewed_by?: "user" | "ai"
 }
 
 export interface BrainRetrievalResult {

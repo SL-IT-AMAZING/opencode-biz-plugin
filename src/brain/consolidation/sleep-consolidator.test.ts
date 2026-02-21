@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { test, expect, describe, beforeEach, afterEach } from "bun:test"
 import { createSleepConsolidator } from "./sleep-consolidator"
 import { getISOWeekNumber, getWeekDates } from "./archival-rollup"
 import type { ArchivalRollup } from "./archival-rollup"
@@ -187,6 +187,10 @@ class FakeArchivalRollup implements ArchivalRollup {
   public rollupMonthlyCalls: Array<{ year: number; month: number; sourceCount: number }> = []
   public throwOnWriteWeekly = new Set<string>()
   public throwOnWriteMonthly = new Set<string>()
+  public weeklyConfidence = 0.7
+  public monthlyConfidence = 0.85
+  public weeklyInformationLossNotes = "Weekly truncation occurred"
+  public monthlyInformationLossNotes = "Monthly truncation occurred"
 
   rollupWeekly(year: number, weekNumber: number, dailies: DailyMemory[]): ArchivalMemory {
     this.rollupWeeklyCalls.push({ year, week: weekNumber, sourceCount: dailies.length })
@@ -198,6 +202,8 @@ class FakeArchivalRollup implements ArchivalRollup {
       key_decisions: [],
       metrics: { days_active: dailies.length },
       source_count: dailies.length,
+      confidence: this.weeklyConfidence,
+      information_loss_notes: this.weeklyInformationLossNotes,
     }
   }
 
@@ -211,6 +217,8 @@ class FakeArchivalRollup implements ArchivalRollup {
       key_decisions: [],
       metrics: { weeks_active: weeklies.length },
       source_count: weeklies.length,
+      confidence: this.monthlyConfidence,
+      information_loss_notes: this.monthlyInformationLossNotes,
     }
   }
 
@@ -290,6 +298,12 @@ async function withFrozenDate<T>(frozenIso: string, run: () => Promise<T>): Prom
 }
 
 describe("brain/consolidation/sleep-consolidator", () => {
+  beforeEach(() => {
+  })
+
+  afterEach(() => {
+  })
+
   test("#given no date #when consolidate daily #then generates today's daily summary", async () => {
     await withFrozenDate("2026-02-20T12:00:00.000Z", async () => {
       const daily = new FakeDailyConsolidator()
@@ -613,5 +627,100 @@ describe("brain/consolidation/sleep-consolidator", () => {
     expect(result.monthliesGenerated).toBe(0)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toContain("daily consolidation failed")
+  })
+
+  test("#given full consolidation generates archives #when consolidate full #then returns audit trail entries", async () => {
+    await withFrozenDate("2026-02-20T12:00:00.000Z", async () => {
+      const today = startOfUtcDay(new Date())
+      const windowDates = getLastThirtyOneDays(today)
+      const daily = new FakeDailyConsolidator()
+      const archival = new FakeArchivalRollup()
+
+      for (const date of windowDates) {
+        const key = toDateKey(date)
+        daily.existingDailySummaries.add(key)
+        daily.dailyByDate.set(key, makeDailyMemory(key, "available"))
+      }
+
+      const consolidator = createSleepConsolidator({
+        dailyConsolidator: daily,
+        archivalRollup: archival,
+        paths: makePaths("/tmp/brain"),
+      })
+      const result = await consolidator.consolidate("full")
+
+      expect(result.audit_trail).toBeDefined()
+      expect(result.audit_trail).toHaveLength(result.weekliesGenerated + result.monthliesGenerated)
+      expect(result.audit_trail?.some(entry => entry.action === "weekly_rollup")).toBe(true)
+      expect(result.audit_trail?.some(entry => entry.action === "monthly_rollup")).toBe(true)
+      expect(result.audit_trail?.every(entry => entry.confidence > 0)).toBe(true)
+      expect(result.audit_trail?.every(entry => entry.information_loss_notes.length > 0)).toBe(true)
+    })
+  })
+
+  test("#given full consolidation with no generated archives #when consolidate full #then omits audit trail", async () => {
+    await withFrozenDate("2026-02-20T12:00:00.000Z", async () => {
+      const today = startOfUtcDay(new Date())
+      const windowDates = getLastThirtyOneDays(today)
+      const daily = new FakeDailyConsolidator()
+      const archival = new FakeArchivalRollup()
+
+      for (const date of windowDates) {
+        const key = toDateKey(date)
+        daily.existingDailySummaries.add(key)
+        daily.dailyByDate.set(key, makeDailyMemory(key, "available"))
+      }
+
+      for (const week of collectUniqueWeeks(windowDates)) {
+        if (isCompleteWeek(week, today)) {
+          archival.weeklyArchives.set(weekKey(week.year, week.week), {
+            period: weekKey(week.year, week.week),
+            type: "weekly",
+            summary: "existing weekly",
+            themes: [],
+            key_decisions: [],
+            source_count: 0,
+          })
+        }
+      }
+
+      for (const month of collectUniqueMonths(windowDates)) {
+        if (isCompleteMonth(month, today)) {
+          archival.monthlyArchives.set(monthKey(month.year, month.month), {
+            period: monthKey(month.year, month.month),
+            type: "monthly",
+            summary: "existing monthly",
+            themes: [],
+            key_decisions: [],
+            source_count: 0,
+          })
+        }
+      }
+
+      const consolidator = createSleepConsolidator({
+        dailyConsolidator: daily,
+        archivalRollup: archival,
+        paths: makePaths("/tmp/brain"),
+      })
+      const result = await consolidator.consolidate("full")
+
+      expect(result.weekliesGenerated).toBe(0)
+      expect(result.monthliesGenerated).toBe(0)
+      expect(result.audit_trail).toBeUndefined()
+    })
+  })
+
+  test("#given daily consolidation scope #when consolidate daily #then does not include audit trail", async () => {
+    const daily = new FakeDailyConsolidator()
+    const archival = new FakeArchivalRollup()
+    const consolidator = createSleepConsolidator({
+      dailyConsolidator: daily,
+      archivalRollup: archival,
+      paths: makePaths("/tmp/brain"),
+    })
+
+    const result = await consolidator.consolidate("daily", new Date("2026-01-15T10:00:00.000Z"))
+
+    expect(result.audit_trail).toBeUndefined()
   })
 })

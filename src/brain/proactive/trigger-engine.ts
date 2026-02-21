@@ -39,6 +39,78 @@ export interface EvaluatedTrigger {
 }
 
 export function createTriggerEngine(deps: TriggerEngineDeps): TriggerEngine {
+  function normalizeTopic(topic: string): string {
+    return topic.trim().toLowerCase()
+  }
+
+  function tokenizeTitle(title: string): Set<string> {
+    return new Set(
+      title
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(word => word.length > 2),
+    )
+  }
+
+  function hasTopicOverlap(leftTitle: string, rightTitle: string): boolean {
+    const leftWords = tokenizeTitle(leftTitle)
+    const rightWords = tokenizeTitle(rightTitle)
+    if (leftWords.size === 0 || rightWords.size === 0) {
+      return false
+    }
+
+    let overlap = 0
+    for (const word of leftWords) {
+      if (rightWords.has(word)) {
+        overlap += 1
+      }
+    }
+
+    const overlapRatio = overlap / Math.min(leftWords.size, rightWords.size)
+    return overlapRatio > 0.5
+  }
+
+  function isImplicitDecisionReversal(
+    leftDecision: { title: string; decision: string; reasoning: string },
+    rightDecision: { title: string; decision: string; reasoning: string },
+  ): boolean {
+    if (!hasTopicOverlap(leftDecision.title, rightDecision.title)) {
+      return false
+    }
+
+    const decisionChanged = leftDecision.decision.trim().toLowerCase() !== rightDecision.decision.trim().toLowerCase()
+    const reasoningChanged = leftDecision.reasoning.trim().toLowerCase() !== rightDecision.reasoning.trim().toLowerCase()
+    return decisionChanged || reasoningChanged
+  }
+
+  function calculateCommitmentUrgency(commitment: { due_date?: string }, now: Date): number {
+    if (!commitment.due_date) {
+      return 0.9
+    }
+
+    const dueDateMs = new Date(commitment.due_date).getTime()
+    if (Number.isNaN(dueDateMs)) {
+      return 0.9
+    }
+
+    const daysOverdue = Math.max(0, (now.getTime() - dueDateMs) / DAY_MS)
+    return Math.min(1.0, 0.9 + (daysOverdue * 0.01))
+  }
+
+  function formatCommitmentOverdueMessage(commitment: { description: string; due_date?: string }, now: Date): string {
+    if (!commitment.due_date) {
+      return `Overdue: ${commitment.description}`
+    }
+
+    const dueDateMs = new Date(commitment.due_date).getTime()
+    if (Number.isNaN(dueDateMs)) {
+      return `Overdue: ${commitment.description}`
+    }
+
+    const daysOverdue = Math.max(0, Math.floor((now.getTime() - dueDateMs) / DAY_MS))
+    return `Overdue by ${daysOverdue} days: ${commitment.description}`
+  }
+
   return {
     async evaluateTriggers(
       sessionId: string,
@@ -99,8 +171,8 @@ export function createTriggerEngine(deps: TriggerEngineDeps): TriggerEngine {
                 subtype: "commitment_overdue",
                 commitment: commitment.description,
               },
-              urgency: 0.9,
-              message_draft: `Overdue: ${commitment.description} (assigned to ${commitment.assigned_to})`,
+              urgency: calculateCommitmentUrgency(commitment, currentDate),
+              message_draft: formatCommitmentOverdueMessage(commitment, currentDate),
             }))
           } catch {
             return []
@@ -132,7 +204,7 @@ export function createTriggerEngine(deps: TriggerEngineDeps): TriggerEngine {
             }
 
             const reversed = await deps.decisionStore.listByStatus("reversed")
-            return reversed.slice(0, 2).map(decision => ({
+            const explicitReversals: EvaluatedTrigger[] = reversed.slice(0, 2).map(decision => ({
               trigger: {
                 type: "pattern",
                 subtype: "decision_reversal",
@@ -141,6 +213,82 @@ export function createTriggerEngine(deps: TriggerEngineDeps): TriggerEngine {
               urgency: 0.7,
               message_draft: `Previously reversed decision: ${decision.title}`,
             }))
+
+            const allDecisions = await deps.decisionStore.list()
+            const activeDecisions = allDecisions.filter(item => item.status === "decided" || item.status === "implemented")
+            const implicitReversals: EvaluatedTrigger[] = []
+
+            for (let leftIndex = 0; leftIndex < activeDecisions.length; leftIndex += 1) {
+              for (let rightIndex = leftIndex + 1; rightIndex < activeDecisions.length; rightIndex += 1) {
+                const leftDecision = activeDecisions[leftIndex]
+                const rightDecision = activeDecisions[rightIndex]
+                if (!isImplicitDecisionReversal(leftDecision, rightDecision)) {
+                  continue
+                }
+
+                implicitReversals.push({
+                  trigger: {
+                    type: "pattern",
+                    subtype: "decision_reversal",
+                    decision: `${leftDecision.title} vs ${rightDecision.title}`,
+                  },
+                  urgency: 0.65,
+                  message_draft: `Potential decision reversal detected: '${leftDecision.title}' vs '${rightDecision.title}'`,
+                })
+              }
+            }
+
+            return [...explicitReversals, ...implicitReversals].slice(0, 3)
+          } catch {
+            return []
+          }
+        },
+        async () => {
+          try {
+            const topicCounts = new Map<string, number>()
+            const topicLabels = new Map<string, string>()
+
+            for (let dayOffset = 0; dayOffset < 7; dayOffset += 1) {
+              const date = new Date(startOfUtcDay(currentDate).getTime() - (dayOffset * DAY_MS))
+              const daily = await deps.dailyConsolidator.readDailySummary(date)
+              if (daily === null || daily.topics.length === 0) {
+                continue
+              }
+
+              const seenTopicsForDay = new Set<string>()
+              for (const topic of daily.topics) {
+                const normalized = normalizeTopic(topic)
+                if (normalized.length === 0 || seenTopicsForDay.has(normalized)) {
+                  continue
+                }
+                seenTopicsForDay.add(normalized)
+                topicLabels.set(normalized, topic.trim())
+                topicCounts.set(normalized, (topicCounts.get(normalized) ?? 0) + 1)
+              }
+            }
+
+            return Array.from(topicCounts.entries())
+              .filter(([, count]) => count >= 3)
+              .sort((left, right) => {
+                if (right[1] !== left[1]) {
+                  return right[1] - left[1]
+                }
+                return left[0].localeCompare(right[0])
+              })
+              .slice(0, 3)
+              .map(([topicKey, count]) => {
+                const topicLabel = topicLabels.get(topicKey) ?? topicKey
+                return {
+                  trigger: {
+                    type: "pattern",
+                    subtype: "repeated_topic",
+                    topic: topicLabel,
+                    count,
+                  },
+                  urgency: 0.4,
+                  message_draft: `Recurring topic: ${topicLabel} (appeared in ${count} of last 7 days)`,
+                }
+              })
           } catch {
             return []
           }

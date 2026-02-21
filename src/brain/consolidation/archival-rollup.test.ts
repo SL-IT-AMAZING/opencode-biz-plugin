@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { test, expect, describe, beforeEach, afterEach } from "bun:test"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -175,6 +175,81 @@ describe("brain/consolidation/archival-rollup", () => {
     })
   })
 
+  test("#given weekly dailies #when rolling up weekly #then source daily paths are populated", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const dailies = [
+      makeDaily({ date: "2026-02-17" }),
+      makeDaily({ date: "2026-02-18" }),
+    ]
+
+    // #when
+    const archive = rollup.rollupWeekly(2026, 8, dailies)
+
+    // #then
+    expect(archive.source_daily_paths).toEqual([
+      "memory/daily/2026-02-17.json",
+      "memory/daily/2026-02-18.json",
+    ])
+  })
+
+  test("#given weekly dailies #when rolling up weekly #then source event ids default to empty array", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+
+    // #when
+    const archive = rollup.rollupWeekly(2026, 8, [makeDaily()])
+
+    // #then
+    expect(archive.source_event_ids).toEqual([])
+  })
+
+  test("#given less than limit themes and decisions #when rolling up weekly #then information loss notes are omitted", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+
+    // #when
+    const archive = rollup.rollupWeekly(2026, 8, [makeDaily()])
+
+    // #then
+    expect(archive.information_loss_notes).toBeUndefined()
+  })
+
+  test("#given truncated themes and decisions #when rolling up weekly #then information loss notes describe truncation", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const dailies = Array.from({ length: 4 }, (_, dayIndex) => makeDaily({
+      date: `2026-02-${String(17 + dayIndex).padStart(2, "0")}`,
+      topics: Array.from({ length: 6 }, (_, topicIndex) => `topic-${dayIndex}-${topicIndex}`),
+      key_decisions: Array.from({ length: 8 }, (_, decisionIndex) => ({
+        decision: `decision-${dayIndex}-${decisionIndex}`,
+        context: "context",
+      })),
+    }))
+
+    // #when
+    const archive = rollup.rollupWeekly(2026, 8, dailies)
+
+    // #then
+    expect(archive.information_loss_notes).toContain("Themes: 24 total reduced to 15.")
+    expect(archive.information_loss_notes).toContain("Decisions: 32 total reduced to 20.")
+  })
+
+  test("#given weekly dailies count #when rolling up weekly #then confidence is normalized and capped", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+
+    // #when
+    const zeroArchive = rollup.rollupWeekly(2026, 8, [])
+    const partialArchive = rollup.rollupWeekly(2026, 8, Array.from({ length: 3 }, () => makeDaily()))
+    const cappedArchive = rollup.rollupWeekly(2026, 8, Array.from({ length: 10 }, () => makeDaily()))
+
+    // #then
+    expect(zeroArchive.confidence).toBe(0)
+    expect(partialArchive.confidence).toBeCloseTo(3 / 7, 5)
+    expect(cappedArchive.confidence).toBe(1)
+  })
+
   test("#given weekly archives #when rolling up monthly #then produces monthly archive", () => {
     // #given
     const rollup = createArchivalRollup(createBrainPaths(tempDir))
@@ -233,6 +308,99 @@ describe("brain/consolidation/archival-rollup", () => {
       total_files_changed: 13,
       total_decisions: 9,
     })
+  })
+
+  test("#given weekly archives #when rolling up monthly #then source paths map to weekly archive files", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const weeklies = [
+      makeWeekly({ period: "2026-W05" }),
+      makeWeekly({ period: "2026-W06" }),
+    ]
+
+    // #when
+    const archive = rollup.rollupMonthly(2026, 2, weeklies)
+
+    // #then
+    expect(archive.source_daily_paths).toEqual([
+      "archive/weekly/2026-W05.json",
+      "archive/weekly/2026-W06.json",
+    ])
+  })
+
+  test("#given weekly source event ids #when rolling up monthly #then event ids aggregate from weeklies", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const weeklies = [
+      makeWeekly({ source_event_ids: ["evt-1", "evt-2"] }),
+      makeWeekly({ period: "2026-W09", source_event_ids: ["evt-3"] }),
+      makeWeekly({ period: "2026-W10" }),
+    ]
+
+    // #when
+    const archive = rollup.rollupMonthly(2026, 2, weeklies)
+
+    // #then
+    expect(archive.source_event_ids).toEqual(["evt-1", "evt-2", "evt-3"])
+  })
+
+  test("#given weekly confidences #when rolling up monthly #then confidence is averaged from weeklies", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const weeklies = [
+      makeWeekly({ confidence: 0.4 }),
+      makeWeekly({ period: "2026-W09", confidence: 0.8 }),
+      makeWeekly({ period: "2026-W10" }),
+    ]
+
+    // #when
+    const archive = rollup.rollupMonthly(2026, 2, weeklies)
+
+    // #then
+    expect(archive.confidence).toBeCloseTo(0.6, 5)
+  })
+
+  test("#given no weekly confidences #when rolling up monthly #then confidence falls back to source count normalized", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+
+    // #when
+    const partialArchive = rollup.rollupMonthly(2026, 2, [
+      makeWeekly(),
+      makeWeekly({ period: "2026-W09" }),
+      makeWeekly({ period: "2026-W10" }),
+    ])
+    const cappedArchive = rollup.rollupMonthly(2026, 2, [
+      makeWeekly(),
+      makeWeekly({ period: "2026-W09" }),
+      makeWeekly({ period: "2026-W10" }),
+      makeWeekly({ period: "2026-W11" }),
+      makeWeekly({ period: "2026-W12" }),
+    ])
+
+    // #then
+    expect(partialArchive.confidence).toBeCloseTo(0.75, 5)
+    expect(cappedArchive.confidence).toBe(1)
+  })
+
+  test("#given truncated monthly themes and decisions #when rolling up monthly #then information loss notes describe truncation", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const weeklies = Array.from({ length: 5 }, (_, weekIndex) => makeWeekly({
+      period: `2026-W${String(8 + weekIndex).padStart(2, "0")}`,
+      themes: Array.from({ length: 5 }, (_, themeIndex) => `theme-${weekIndex}-${themeIndex}`),
+      key_decisions: Array.from({ length: 7 }, (_, decisionIndex) => ({
+        date: `2026-02-${String(10 + weekIndex).padStart(2, "0")}`,
+        decision: `decision-${weekIndex}-${decisionIndex}`,
+      })),
+    }))
+
+    // #when
+    const archive = rollup.rollupMonthly(2026, 2, weeklies)
+
+    // #then
+    expect(archive.information_loss_notes).toContain("Themes: 25 total reduced to 20.")
+    expect(archive.information_loss_notes).toContain("Decisions: 35 total reduced to 30.")
   })
 
   test("#given weekly archive #when writing and reading #then weekly roundtrip works", async () => {
@@ -321,6 +489,40 @@ describe("brain/consolidation/archival-rollup", () => {
     expect(markdown).toContain("1. [2026-02-17] Decision one")
     expect(markdown).toContain("## Metrics")
     expect(markdown).toContain("- total_decisions: 2")
+    expect(markdown).toContain("## Audit Trail")
+    expect(markdown).toContain("Source paths:")
+    expect(markdown).toContain("- None")
+  })
+
+  test("#given audit metadata #when rendering markdown #then includes audit details", () => {
+    // #given
+    const rollup = createArchivalRollup(createBrainPaths(tempDir))
+    const archive: ArchivalMemory = {
+      period: "2026-W08",
+      type: "weekly",
+      summary: "Week summary",
+      themes: ["memory", "rollup"],
+      key_decisions: [{ date: "2026-02-17", decision: "Decision one" }],
+      source_count: 2,
+      source_daily_paths: [
+        "memory/daily/2026-02-17.json",
+        "memory/daily/2026-02-18.json",
+      ],
+      information_loss_notes: "Themes: 22 total reduced to 15.",
+      confidence: 0.625,
+      reviewed_by: "ai",
+    }
+
+    // #when
+    const markdown = rollup.toMarkdown(archive)
+
+    // #then
+    expect(markdown).toContain("## Audit Trail")
+    expect(markdown).toContain("- memory/daily/2026-02-17.json")
+    expect(markdown).toContain("- memory/daily/2026-02-18.json")
+    expect(markdown).toContain("Information loss notes: Themes: 22 total reduced to 15.")
+    expect(markdown).toContain("Confidence: 62.5%")
+    expect(markdown).toContain("Reviewed by: ai")
   })
 
   test("#given empty archive sections #when rendering markdown #then renders graceful defaults", () => {

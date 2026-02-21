@@ -147,15 +147,16 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
       const topics = dailies.flatMap(daily => daily.topics)
       const rankedThemes = countByFrequency(topics)
       const themes = rankedThemes.slice(0, 15)
+      const totalThemeCount = rankedThemes.length
 
-      const keyDecisions = dailies
+      const weeklyDecisions = dailies
         .slice()
         .sort((a, b) => compareDateLike(a.date, b.date))
         .flatMap(daily => daily.key_decisions.map(decision => ({
           date: daily.date,
           decision: decision.decision,
         })))
-        .slice(0, 20)
+      const keyDecisions = weeklyDecisions.slice(0, 20)
 
       const totalFilesChanged = dailies.reduce((total, daily) => total + daily.files_changed.length, 0)
       const totalDecisions = dailies.reduce((total, daily) => total + daily.key_decisions.length, 0)
@@ -174,6 +175,18 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
         ? "No activity this week."
         : `Week ${period}: ${sourceCount} days of activity. Themes: ${topThreeThemes}. ${totalDecisions} decisions, ${totalFilesChanged} files changed.`
 
+      const informationLossNotes: string[] = []
+      if (totalThemeCount > 15) {
+        informationLossNotes.push(`Themes: ${totalThemeCount} total reduced to 15.`)
+      }
+
+      if (weeklyDecisions.length > 20) {
+        informationLossNotes.push(`Decisions: ${weeklyDecisions.length} total reduced to 20.`)
+      }
+
+      const sourceDailyPaths = dailies.map(daily => `memory/daily/${daily.date}.json`)
+      const confidence = Math.min(sourceCount / 7, 1)
+
       return {
         period,
         type: "weekly",
@@ -182,6 +195,10 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
         key_decisions: keyDecisions,
         metrics,
         source_count: sourceCount,
+        source_daily_paths: sourceDailyPaths,
+        source_event_ids: [],
+        information_loss_notes: informationLossNotes.length > 0 ? informationLossNotes.join(" ") : undefined,
+        confidence,
       }
     },
 
@@ -190,13 +207,14 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
       const sourceCount = weeklies.length
 
       const allThemes = weeklies.flatMap(weekly => weekly.themes)
-      const themes = countByFrequency(allThemes).slice(0, 20)
+      const rankedThemes = countByFrequency(allThemes)
+      const themes = rankedThemes.slice(0, 20)
 
-      const keyDecisions = weeklies
+      const monthlyDecisions = weeklies
         .flatMap(weekly => weekly.key_decisions)
         .slice()
         .sort((a, b) => compareDateLike(a.date, b.date))
-        .slice(0, 30)
+      const keyDecisions = monthlyDecisions.slice(0, 30)
 
       const metrics: Record<string, number> = {
         weeks_active: sourceCount,
@@ -210,6 +228,23 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
         ? "No activity this month."
         : `Month ${period}: ${sourceCount} weeks of activity. Key themes: ${topThreeThemes}. ${metrics.total_decisions} decisions made.`
 
+      const informationLossNotes: string[] = []
+      if (rankedThemes.length > 20) {
+        informationLossNotes.push(`Themes: ${rankedThemes.length} total reduced to 20.`)
+      }
+
+      if (monthlyDecisions.length > 30) {
+        informationLossNotes.push(`Decisions: ${monthlyDecisions.length} total reduced to 30.`)
+      }
+
+      const confidenceCandidates = weeklies
+        .map(weekly => weekly.confidence)
+        .filter((value): value is number => typeof value === "number")
+
+      const confidence = confidenceCandidates.length > 0
+        ? confidenceCandidates.reduce((total, value) => total + value, 0) / confidenceCandidates.length
+        : Math.min(sourceCount / 4, 1)
+
       return {
         period,
         type: "monthly",
@@ -218,6 +253,10 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
         key_decisions: keyDecisions,
         metrics,
         source_count: sourceCount,
+        source_daily_paths: weeklies.map(weekly => `archive/weekly/${weekly.period}.json`),
+        source_event_ids: weeklies.flatMap(weekly => weekly.source_event_ids ?? []),
+        information_loss_notes: informationLossNotes.length > 0 ? informationLossNotes.join(" ") : undefined,
+        confidence,
       }
     },
 
@@ -281,6 +320,34 @@ export function createArchivalRollup(paths: BrainPaths): ArchivalRollup {
         for (const [key, value] of Object.entries(archive.metrics)) {
           lines.push(`- ${key}: ${value}`)
         }
+      }
+
+      lines.push("")
+      lines.push("## Audit Trail")
+      lines.push("")
+
+      lines.push("Source paths:")
+      if ((archive.source_daily_paths ?? []).length === 0) {
+        lines.push("- None")
+      } else {
+        for (const sourcePath of archive.source_daily_paths ?? []) {
+          lines.push(`- ${sourcePath}`)
+        }
+      }
+
+      if (archive.information_loss_notes) {
+        lines.push("")
+        lines.push(`Information loss notes: ${archive.information_loss_notes}`)
+      }
+
+      if (typeof archive.confidence === "number") {
+        lines.push("")
+        lines.push(`Confidence: ${(archive.confidence * 100).toFixed(1)}%`)
+      }
+
+      if (archive.reviewed_by) {
+        lines.push("")
+        lines.push(`Reviewed by: ${archive.reviewed_by}`)
       }
 
       return `${lines.join("\n")}\n`
