@@ -47,3 +47,11 @@ export const RELATIONSHIP_TYPES = ["team", "investor", "advisor", "partner", "cu
 export const DECISION_STATUSES = ["proposed", "decided", "implemented", "reversed"] as const
 export const COMMITMENT_STATUSES = ["pending", "in_progress", "done", "overdue", "cancelled"] as const
 export const CONVERSATION_TYPES = ["brainstorm", "decision", "review", "planning", "casual"] as const
+
+// === Debate Tool Descriptions ===
+
+export const BRAIN_DEBATE_DESCRIPTION =
+  "Initiate a structured multi-agent debate analysis for a CEO decision. Gathers evidence from decision history, commitments, people, and vault content, then returns a structured prompt for multi-perspective analysis (Researcher, Advocate, Critic, Synthesizer, Devil's Advocate)."
+
+export const BRAIN_REVIEW_DECISION_DESCRIPTION =
+  "Review a past decision with outcome analysis. Retrieves the decision record and any recorded outcomes, then returns a structured prompt for retrospective evaluation."

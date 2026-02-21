@@ -9,6 +9,8 @@ export type CeoEventType =
   | "topic.discussed"
   | "insight.generated"
   | "followup.needed"
+  | "debate.initiated"
+  | "decision.reviewed"
 
 export type AkashicEventType =
   | "file.created"

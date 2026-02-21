@@ -15,7 +15,7 @@ import { createMicroConsolidator } from "./brain/consolidation/micro-consolidato
 import { createDailyConsolidator } from "./brain/consolidation/daily-consolidator"
 import { createArchivalRollup } from "./brain/consolidation/archival-rollup"
 import { createSleepConsolidator } from "./brain/consolidation/sleep-consolidator"
-import { createBrainTools, createMeetingTools, createDecisionTools, createPeopleTools, createCommitmentTools, createProactiveTools } from "./tools"
+import { createBrainTools, createMeetingTools, createDecisionTools, createPeopleTools, createCommitmentTools, createProactiveTools, createDebateTools } from "./tools"
 import { createBrainHook } from "./hooks"
 import { createHeartbeat } from "./brain/heartbeat"
 import { createPersonStore } from "./brain/stores/person-store"
@@ -254,6 +254,7 @@ const BrainPlugin: Plugin = async (ctx) => {
     ...createPeopleTools(toolDeps),
     ...createCommitmentTools(toolDeps),
     ...createProactiveTools({ proactiveEngine, morningBriefGenerator }),
+    ...createDebateTools(toolDeps),
   }
 
   const heartbeat = createHeartbeat({
