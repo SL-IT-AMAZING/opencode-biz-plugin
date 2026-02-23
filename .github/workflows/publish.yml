@@ -130,6 +130,9 @@ jobs:
           fi
 
           echo "Attempting npm trusted publishing (OIDC)"
+          TRUSTED_NPMRC="$(mktemp)"
+          printf "registry=https://registry.npmjs.org/\n" > "$TRUSTED_NPMRC"
+          export NPM_CONFIG_USERCONFIG="$TRUSTED_NPMRC"
           unset NODE_AUTH_TOKEN
           if npm publish --access public --provenance $TAG_ARG; then
             echo "Trusted publishing succeeded"
