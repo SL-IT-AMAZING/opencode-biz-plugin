@@ -123,13 +123,29 @@ jobs:
       - name: Publish package
         if: steps.check.outputs.skip != 'true'
         run: |
+          set -euo pipefail
           TAG_ARG=""
           if [ -n "${{ steps.version.outputs.dist_tag }}" ]; then
             TAG_ARG="--tag ${{ steps.version.outputs.dist_tag }}"
           fi
-          npm publish --access public --provenance $TAG_ARG
+
+          echo "Attempting npm trusted publishing (OIDC)"
+          unset NODE_AUTH_TOKEN
+          if npm publish --access public --provenance $TAG_ARG; then
+            echo "Trusted publishing succeeded"
+            exit 0
+          fi
+
+          echo "Trusted publishing failed; retrying with NPM_TOKEN secret if available"
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            NODE_AUTH_TOKEN="$NPM_TOKEN" npm publish --access public --provenance $TAG_ARG
+          else
+            echo "NPM_TOKEN is not configured"
+            exit 1
+          fi
         env:
           NPM_CONFIG_PROVENANCE: true
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Git commit and tag
         if: steps.check.outputs.skip != 'true'
