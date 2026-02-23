@@ -228,16 +228,25 @@ curl -s https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs
 
 ### Vault가 없는 경우
 
-Obsidian vault가 없으면 `opencode.json`에서 직접 경로를 지정할 수 있습니다:
+Obsidian vault가 없으면 `.opencode/opencode-plugin-brain.json`에서 직접 경로를 지정할 수 있습니다:
 
 ```json
 {
-  "plugin": ["opencode-plugin-brain"],
-  "brain": {
-    "vault_path": "./my-notes"
-  }
+  "vault_path": "./my-notes"
 }
 ```
+
+### `oh-my-opencode`와 함께 쓰기
+
+OpenCode는 `plugin` 배열의 여러 플러그인을 순차 로드/실행하므로, 아래처럼 함께 설정하면 공존 가능합니다.
+
+```json
+{
+  "plugin": ["oh-my-opencode", "opencode-plugin-brain"]
+}
+```
+
+참고: 안정화 초기에는 `.opencode/opencode-plugin-brain.json`의 `proactive.enabled`를 `false`로 두고 점진적으로 켜는 것을 권장합니다.
 
 ---
 
@@ -634,44 +643,44 @@ _brain/
 
 ## 설정 (선택사항)
 
-기본값으로도 잘 동작하지만, `opencode.json`에서 커스터마이즈할 수 있습니다:
+기본값으로도 잘 동작하지만, 브레인 전용 설정 파일에서 커스터마이즈할 수 있습니다:
+
+- 프로젝트: `.opencode/opencode-plugin-brain.json`
+- 글로벌: `~/.config/opencode/opencode-plugin-brain.json`
 
 ```jsonc
 {
-  "plugin": ["opencode-plugin-brain"],
-  "brain": {
-    // Obsidian vault 경로 (자동 감지 안 될 때)
-    "vault_path": "/path/to/my/vault",
+  // Obsidian vault 경로 (자동 감지 안 될 때)
+  "vault_path": "/path/to/my/vault",
 
-    // 파일 감시 설정
-    "watch": {
-      "patterns": ["**/*.md", "**/*.ts", "**/*.js"],  // 감시할 파일 패턴
-      "debounce_ms": 1000                              // 변경 감지 딜레이 (ms)
-    },
+  // 파일 감시 설정
+  "watch": {
+    "patterns": ["**/*.md", "**/*.ts", "**/*.js"],  // 감시할 파일 패턴
+    "debounce_ms": 1000                              // 변경 감지 딜레이 (ms)
+  },
 
-    // 제외할 경로
-    "exclude_paths": ["node_modules", "dist", ".git"],
+  // 제외할 경로
+  "exclude_paths": ["node_modules", "dist", ".git"],
 
-    // 기억 정리 설정
-    "consolidation": {
-      "micro_interval_minutes": 30,    // Micro-consolidation 간격
-      "decay_half_life_days": 30,      // 검색 시 시간 감쇠 반감기
-      "evergreen_tags": ["evergreen", "permanent", "core"]  // 감쇠 면제 태그
-    },
+  // 기억 정리 설정
+  "consolidation": {
+    "micro_interval_minutes": 30,    // Micro-consolidation 간격
+    "decay_half_life_days": 30,      // 검색 시 시간 감쇠 반감기
+    "evergreen_tags": ["evergreen", "permanent", "core"]  // 감쇠 면제 태그
+  },
 
-    // 임베딩 설정 (벡터 검색용, 선택)
-    "embedding": {
-      "provider": "openai",            // "openai" | "voyage" | "local" | "null"
-      "model": "text-embedding-3-small",
-      "dimensions": 1536
-    },
+  // 임베딩 설정 (벡터 검색용, 선택)
+  "embedding": {
+    "provider": "openai",            // "openai" | "voyage" | "local" | "null"
+    "model": "text-embedding-3-small",
+    "dimensions": 1536
+  },
 
-    // 검색 설정
-    "search": {
-      "rrf_k": 60,                     // RRF 퓨전 상수
-      "mmr_lambda": 0.7,              // MMR 다양성 파라미터 (0=다양, 1=관련성)
-      "temporal_decay_enabled": true   // 시간 감쇠 활성화
-    }
+  // 검색 설정
+  "search": {
+    "rrf_k": 60,                     // RRF 퓨전 상수
+    "mmr_lambda": 0.7,              // MMR 다양성 파라미터 (0=다양, 1=관련성)
+    "temporal_decay_enabled": true   // 시간 감쇠 활성화
   }
 }
 ```

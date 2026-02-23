@@ -48,15 +48,15 @@ export function createBrainHook(ctx: PluginInput, deps: BrainHookDeps) {
       if (!deps.heartbeat || !input.sessionID) return
 
       const alreadyInjected = output.system.some(s => s.includes(HEARTBEAT_MARKER))
-      if (alreadyInjected) return
-
-      try {
-        const sections = await deps.heartbeat.getSystemContext(input.sessionID)
-        if (sections.length > 0) {
-          output.system.push(`${HEARTBEAT_MARKER}\n${sections.join("\n")}`)
+      if (!alreadyInjected) {
+        try {
+          const sections = await deps.heartbeat.getSystemContext(input.sessionID)
+          if (sections.length > 0) {
+            output.system.push(`${HEARTBEAT_MARKER}\n${sections.join("\n")}`)
+          }
+        } catch (err) {
+          log("[brain-hook] heartbeat error", { error: err instanceof Error ? err.message : String(err) })
         }
-      } catch (err) {
-        log("[brain-hook] heartbeat error", { error: err instanceof Error ? err.message : String(err) })
       }
 
       if (deps.proactiveEngine && deps.deliveryManager) {
@@ -97,7 +97,9 @@ export function createBrainHook(ctx: PluginInput, deps: BrainHookDeps) {
         try {
           const result = await deps.microConsolidator.consolidate()
           sections.splice(sections.length - 1, 0, `Last consolidated: ${result.timestamp} (${result.eventsProcessed} events)`)
-        } catch {}
+        } catch (err) {
+          log("[brain-hook] micro consolidation error", { error: err instanceof Error ? err.message : String(err) })
+        }
       }
 
       if (deps.heartbeat) {

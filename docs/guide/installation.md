@@ -37,28 +37,49 @@ bun add opencode-plugin-brain
 
 ### 3) OpenCode 설정
 
-`opencode.json` 또는 `~/.config/opencode/opencode.json`에 플러그인 등록:
+`opencode.json` 또는 `~/.config/opencode/opencode.json`에는 플러그인 이름만 등록합니다.
 
 ```json
 {
-  "plugin": ["opencode-plugin-brain"],
-  "brain": {
-    "enabled": true,
-    "ceo": { "enabled": true },
-    "proactive": { "enabled": true, "threshold": 0.6 }
-  }
+  "plugin": ["opencode-plugin-brain"]
 }
 ```
+
+브레인 플러그인 전용 설정은 별도 파일에 둡니다.
+
+- 프로젝트 설정: `.opencode/opencode-plugin-brain.json`
+- 글로벌 설정: `~/.config/opencode/opencode-plugin-brain.json`
+
+예시 (`.opencode/opencode-plugin-brain.json`):
+
+```json
+{
+  "enabled": true,
+  "ceo": { "enabled": true },
+  "proactive": { "enabled": true, "threshold": 0.6 }
+}
+```
+
+### 3-1) `oh-my-opencode`와 공존 설정
+
+두 플러그인을 함께 쓸 때는 `plugin` 배열에 둘 다 넣으면 됩니다.
+
+```json
+{
+  "plugin": ["oh-my-opencode", "opencode-plugin-brain"]
+}
+```
+
+권장 사항:
+- 초기엔 `proactive.enabled`를 `false`로 시작하고, 안정화 후 `true`로 전환
+- 두 플러그인 모두 훅을 순차 실행하므로(override 아님), 설정만 정확하면 공존 가능
 
 Obsidian 볼트를 자동 감지하지 못하면 경로를 명시하세요:
 
 ```json
 {
-  "plugin": ["opencode-plugin-brain"],
-  "brain": {
-    "enabled": true,
-    "vault_path": "/absolute/path/to/your/vault"
-  }
+  "enabled": true,
+  "vault_path": "/absolute/path/to/your/vault"
 }
 ```
 
@@ -76,6 +97,6 @@ opencode
 
 ## 문제 해결
 
-- vault 자동 감지가 실패하면 `brain.vault_path`를 명시
-- 프로액티브 알림이 너무 많으면 `brain.proactive.threshold`를 높이거나 `brain_proactive_feedback` 사용
+- vault 자동 감지가 실패하면 `vault_path`를 명시
+- 프로액티브 알림이 너무 많으면 `proactive.threshold`를 높이거나 `brain_proactive_feedback` 사용
 - 설치 직후에는 히스토리가 적어서 검색/요약 품질이 낮을 수 있음 (1~2일 사용 후 안정화)

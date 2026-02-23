@@ -28,7 +28,6 @@ import { createMorningBriefGenerator } from "./brain/proactive/morning-brief"
 import { createSpeakConfig, computeScore, shouldSpeak } from "./brain/proactive/scoring"
 import type { ProactiveEngine } from "./brain/proactive/types"
 import {
-  BrainConfigSchema,
   BrainWatchConfigSchema,
   BrainEmbeddingConfigSchema,
   BrainSearchConfigSchema,
@@ -38,10 +37,10 @@ import {
 import type { BrainConfig } from "./brain/config"
 import { detectVaultPath } from "./brain/vault/paths"
 import { log } from "./shared/logger"
+import { loadBrainPluginConfig } from "./plugin-config"
 
 const BrainPlugin: Plugin = async (ctx) => {
-  const rawConfig = (ctx as unknown as Record<string, unknown>).brain ?? {}
-  const config: BrainConfig = BrainConfigSchema.parse(rawConfig)
+  const config: BrainConfig = await loadBrainPluginConfig(ctx.directory, ctx)
 
   const vaultPath = config.vault_path ?? (await detectVaultPath(ctx.directory))
   if (!vaultPath) {
