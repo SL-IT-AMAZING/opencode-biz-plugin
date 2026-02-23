@@ -204,15 +204,36 @@ curl -s https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs
 
 ### 플러그인 설치
 
-1. 프로젝트 루트에서:
+현재 패키지는 npm에 배포되어 있지 않아서, **로컬 파일 플러그인 방식**이 기준입니다.
+
+1. 플러그인 저장소를 클론하고 의존성 설치:
    ```bash
-   bun add opencode-plugin-brain
+   git clone https://github.com/SL-IT-AMAZING/opencode-biz-plugin.git
+   cd opencode-biz-plugin
+   bun install
    ```
 
-2. `opencode.json` 파일에 플러그인 등록:
+2. `opencode.json` 파일에 플러그인 등록 (절대경로 사용):
    ```json
    {
-     "plugin": ["opencode-plugin-brain"]
+     "plugin": ["file:///ABSOLUTE/PATH/TO/opencode-biz-plugin/src/opencode-plugin-brain.ts"]
+   }
+   ```
+
+   예시:
+   ```json
+   {
+     "plugin": ["file:///Users/cosmos/Documents/opensource/opencode-plugin-brain/src/opencode-plugin-brain.ts"]
+   }
+   ```
+
+   `oh-my-opencode`와 함께 쓸 때:
+   ```json
+   {
+     "plugin": [
+       "oh-my-opencode",
+       "file:///Users/cosmos/Documents/opensource/opencode-plugin-brain/src/opencode-plugin-brain.ts"
+     ]
    }
    ```
 
@@ -247,6 +268,20 @@ OpenCode는 `plugin` 배열의 여러 플러그인을 순차 로드/실행하므
 ```
 
 참고: 안정화 초기에는 `.opencode/opencode-plugin-brain.json`의 `proactive.enabled`를 `false`로 두고 점진적으로 켜는 것을 권장합니다.
+
+### npm 배포 이후 설치 방식
+
+`opencode-plugin-brain`이 npm에 배포된 이후에는 아래 방식도 사용할 수 있습니다.
+
+```bash
+bun add opencode-plugin-brain
+```
+
+```json
+{
+  "plugin": ["opencode-plugin-brain"]
+}
+```
 
 ---
 

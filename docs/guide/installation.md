@@ -29,19 +29,29 @@ curl -s https://raw.githubusercontent.com/SL-IT-AMAZING/opencode-biz-plugin/refs
 
 ### 2) 플러그인 설치
 
-프로젝트 루트에서:
+현재 `opencode-plugin-brain` 패키지는 npm 미배포 상태이므로, 로컬 파일 플러그인 방식으로 설치합니다.
 
 ```bash
-bun add opencode-plugin-brain
+git clone https://github.com/SL-IT-AMAZING/opencode-biz-plugin.git
+cd opencode-biz-plugin
+bun install
 ```
 
 ### 3) OpenCode 설정
 
-`opencode.json` 또는 `~/.config/opencode/opencode.json`에는 플러그인 이름만 등록합니다.
+`opencode.json` 또는 `~/.config/opencode/opencode.json`에 로컬 파일 플러그인 경로를 등록합니다.
 
 ```json
 {
-  "plugin": ["opencode-plugin-brain"]
+  "plugin": ["file:///ABSOLUTE/PATH/TO/opencode-biz-plugin/src/opencode-plugin-brain.ts"]
+}
+```
+
+예시:
+
+```json
+{
+  "plugin": ["file:///Users/cosmos/Documents/opensource/opencode-plugin-brain/src/opencode-plugin-brain.ts"]
 }
 ```
 
@@ -66,7 +76,10 @@ bun add opencode-plugin-brain
 
 ```json
 {
-  "plugin": ["oh-my-opencode", "opencode-plugin-brain"]
+  "plugin": [
+    "oh-my-opencode",
+    "file:///Users/cosmos/Documents/opensource/opencode-plugin-brain/src/opencode-plugin-brain.ts"
+  ]
 }
 ```
 
@@ -100,3 +113,17 @@ opencode
 - vault 자동 감지가 실패하면 `vault_path`를 명시
 - 프로액티브 알림이 너무 많으면 `proactive.threshold`를 높이거나 `brain_proactive_feedback` 사용
 - 설치 직후에는 히스토리가 적어서 검색/요약 품질이 낮을 수 있음 (1~2일 사용 후 안정화)
+
+## npm 배포 이후 방식
+
+패키지 배포 후에는 아래 방식도 가능:
+
+```bash
+bun add opencode-plugin-brain
+```
+
+```json
+{
+  "plugin": ["opencode-plugin-brain"]
+}
+```
